@@ -36,12 +36,18 @@ def create_tables(conn, cursor):
           sponsored INTEGER,
           posted_at TEXT,
           scraped_at TEXT,
-          discovered_at TEXT
+          discovered_at TEXT,
+          relevance_score INTEGER,
+          matched_keywords TEXT,
+          scrape_run_id INTEGER
         );
     ''')
     ensure_column(cursor, 'jobs', 'posted_at', 'TEXT')
     ensure_column(cursor, 'jobs', 'scraped_at', 'TEXT')
     ensure_column(cursor, 'jobs', 'discovered_at', 'TEXT')
+    ensure_column(cursor, 'jobs', 'relevance_score', 'INTEGER')
+    ensure_column(cursor, 'jobs', 'matched_keywords', 'TEXT')
+    ensure_column(cursor, 'jobs', 'scrape_run_id', 'INTEGER')
 
     cursor.execute('''
       CREATE TABLE IF NOT EXISTS skills (
@@ -49,18 +55,6 @@ def create_tables(conn, cursor):
           skill_name TEXT
       )
   ''')
-
-    # cursor.execute('''
-    #   CREATE TABLE IF NOT EXISTS job_skills (
-    #       job_id INTEGER,
-    #       skill_abr TEXT,
-    #       skill_name TEXT,
-    #       FOREIGN KEY (job_id) REFERENCES jobs(job_id),
-    #       FOREIGN KEY (skill_abr) REFERENCES skills(skill_abr),
-    #       FOREIGN KEY (skill_name) REFERENCES skills(skill_name),
-    #       PRIMARY KEY (job_id)
-    #   )
-    # ''')
 
     cursor.execute('''
       CREATE TABLE IF NOT EXISTS job_skills (
@@ -78,18 +72,6 @@ def create_tables(conn, cursor):
           industry_name TEXT
       )
     ''')
-
-    # cursor.execute('''
-    #   CREATE TABLE IF NOT EXISTS job_industries (
-    #       job_id INTEGER,
-    #       industry_id INTEGER,
-    #       industry_name TEXT,
-    #       FOREIGN KEY (job_id) REFERENCES jobs(job_id),
-    #       FOREIGN KEY (industry_id) REFERENCES industries(industry_id),
-    #       FOREIGN KEY (industry_name) REFERENCES industries(industry_name),
-    #       PRIMARY KEY (job_id)
-    #   )
-    # ''')
 
     cursor.execute('''
       CREATE TABLE IF NOT EXISTS job_industries (
@@ -173,6 +155,59 @@ def create_tables(conn, cursor):
       )
     ''')
 
+    # Scrape configuration profiles
+    cursor.execute('''
+      CREATE TABLE IF NOT EXISTS scrape_configs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          profile_name TEXT NOT NULL,
+          keywords TEXT DEFAULT '[]',
+          job_titles TEXT DEFAULT '[]',
+          excluded_keywords TEXT DEFAULT '[]',
+          location TEXT DEFAULT '',
+          remote_filter TEXT DEFAULT 'any',
+          job_type TEXT DEFAULT '[]',
+          experience_level TEXT DEFAULT '[]',
+          years_of_experience_min INTEGER,
+          years_of_experience_max INTEGER,
+          expected_pay_min INTEGER,
+          expected_pay_max INTEGER,
+          pay_currency TEXT DEFAULT 'USD',
+          required_skills TEXT DEFAULT '[]',
+          preferred_skills TEXT DEFAULT '[]',
+          programming_languages TEXT DEFAULT '[]',
+          company_names TEXT DEFAULT '[]',
+          excluded_companies TEXT DEFAULT '[]',
+          company_size TEXT DEFAULT '[]',
+          industry TEXT DEFAULT '[]',
+          date_posted TEXT DEFAULT 'any',
+          max_jobs_to_scrape INTEGER DEFAULT 100,
+          pages_to_scrape INTEGER DEFAULT 10,
+          weight_title_match INTEGER DEFAULT 7,
+          weight_skills_match INTEGER DEFAULT 7,
+          weight_salary_match INTEGER DEFAULT 5,
+          is_active INTEGER DEFAULT 0,
+          created_at TEXT,
+          updated_at TEXT
+      )
+    ''')
+
+    # Scrape run history
+    cursor.execute('''
+      CREATE TABLE IF NOT EXISTS scrape_runs (
+          run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          config_id INTEGER,
+          status TEXT DEFAULT 'pending',
+          started_at TEXT,
+          finished_at TEXT,
+          total_found INTEGER DEFAULT 0,
+          new_jobs INTEGER DEFAULT 0,
+          pages_scraped INTEGER DEFAULT 0,
+          total_pages INTEGER DEFAULT 0,
+          errors INTEGER DEFAULT 0,
+          error_log TEXT DEFAULT '[]',
+          FOREIGN KEY (config_id) REFERENCES scrape_configs(id)
+      )
+    ''')
 
     conn.commit()
     return True
