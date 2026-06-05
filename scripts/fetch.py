@@ -6,8 +6,6 @@ from selenium.webdriver.support import expected_conditions as EC
 import time
 import requests
 import pandas as pd
-import urllib.parse
-
 from scripts.helpers import strip_val, get_value_by_path
 
 
@@ -102,18 +100,15 @@ def get_logins(method):
 
 class JobSearchRetriever:
     def __init__(self):
-        encoded_keywords = urllib.parse.quote(KEYWORDS)
-        levels_str = ','.join(EXPERIENCE_LEVELS)
-        query_str = f'(origin:JOB_SEARCH_PAGE_Sds:{encoded_keywords},selectedFilters:(experienceLevel:List({levels_str}),sortBy:List(DD)),spellCorrectionEnabled:true)'
-        
-        self.job_search_link = f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=100&q=jobSearch&query={query_str}&start=0'
+        search_query = '(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,selectedFilters:(sortBy:List(DD)),spellCorrectionEnabled:true)'
+        self.job_search_link = f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=100&q=jobSearch&query={search_query}&start=0'
         emails, passwords = get_logins('search')
         self.sessions = [create_session(email, password) for email, password in zip(emails, passwords)]
         self.session_index = 0
         self.headers = [{
             'Authority': 'www.linkedin.com',
             'Method': 'GET',
-            'Path': f'voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=25&q=jobSearch&query={query_str}&start=0',
+            'Path': f'voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=25&q=jobSearch&query={search_query}&start=0',
             'Scheme': 'https',
             'Accept': 'application/vnd.linkedin.normalized+json+2.1',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -131,7 +126,7 @@ class JobSearchRetriever:
         self.session_index = (self.session_index + 1) % len(self.sessions)
 
         if results.status_code != 200:
-            raise Exception('Status code {} for search\nText: {}'.format(results.status_code, results.text))
+            raise Exception('Status code {} for search\nURL: {}\nText: {}'.format(results.status_code, results.url, results.text))
         results = results.json()
         job_ids = {}
 
@@ -205,4 +200,3 @@ class JobDetailRetriever:
         return job_details
 
 # https://proxy2.webshare.io/register?
-

@@ -1,5 +1,6 @@
 import json
 import os
+import base64
 from datetime import datetime, timezone
 
 import requests
@@ -16,6 +17,24 @@ SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
 def using_supabase():
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+
+
+def _jwt_payload(token):
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")).decode("utf-8"))
+    except Exception:
+        return {}
+
+
+def validate_service_role_key():
+    role = _jwt_payload(SUPABASE_SERVICE_ROLE_KEY).get("role")
+    if role != "service_role":
+        raise RuntimeError(
+            "SUPABASE_SERVICE_ROLE_KEY must be your Supabase service_role key. "
+            "The anon/public key cannot write scraper rows because Row Level Security blocks inserts."
+        )
 
 
 def utc_now_iso():
@@ -44,6 +63,7 @@ class SupabaseClient:
     def __init__(self):
         if not using_supabase():
             raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.")
+        validate_service_role_key()
 
         self.base_url = f"{SUPABASE_URL}/rest/v1"
         self.headers = {
