@@ -94,16 +94,29 @@ def _ensure_db():
 
 
 def _reset_default_config():
-    """Clear all profiles in database and restore default tech config."""
+    """Reset active config to Default Tech and restore its permanent values. Keep user-saved profiles."""
     try:
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM scrape_configs;")
+        # 1. Delete temporary Quick Scrape profiles
+        cursor.execute("DELETE FROM scrape_configs WHERE profile_name = 'Quick Scrape'")
         conn.commit()
+
+        # 2. Check if default config already exists
+        cursor.execute("SELECT id FROM scrape_configs WHERE profile_name = ?", (DEFAULT_TECH_CONFIG['profile_name'],))
+        row = cursor.fetchone()
         conn.close()
 
-        cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
-        activate_config(cfg_id)
+        from scripts.config_db import save_config, activate_config
+        if row:
+            default_id = row[0]
+            cfg = dict(DEFAULT_TECH_CONFIG)
+            cfg['id'] = default_id
+            save_config(cfg)
+            activate_config(default_id)
+        else:
+            cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
+            activate_config(cfg_id)
         print("[+] Configurations reset to Default Tech config.")
     except Exception as e:
         print(f"[!] Warning: Failed to reset config: {e}")

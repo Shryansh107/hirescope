@@ -30,7 +30,31 @@ Make sure you have the following installed on your machine:
 
 ---
 
-## 3. Configuring LinkedIn Credentials
+## 3. Database Configuration & Schema Migrations
+
+The scraper supports two database backends: **SQLite** (local file-based, default) and **Supabase** (Postgres cloud, for deployment).
+
+### Option A: SQLite (Local)
+No environment variables are needed. The system automatically initializes `linkedin_jobs.db` on startup.
+* **Schema Upgrades/Migrations:** If you have an older database file or want to ensure your columns are up to date, run:
+  ```bash
+  python scripts/create_db.py
+  ```
+
+### Option B: Supabase (Cloud Deployment)
+1. **Configure Environment Variables:**
+   Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   Open `.env` and set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`.
+2. **Schema Upgrades/Migrations:**
+   * For **New Projects:** Copy the SQL script in `supabase_schema.sql` and run it in the Supabase SQL Editor.
+   * For **Existing Deployments (Migrating Older Schema):** Copy the SQL script in `supabase_migration.sql` and run it in the Supabase SQL Editor.
+
+---
+
+## 4. Configuring LinkedIn Credentials
 
 The scraper reads credentials from `logins.csv`. Since a template is provided:
 
@@ -49,7 +73,7 @@ The scraper reads credentials from `logins.csv`. Since a template is provided:
 
 ---
 
-## 4. Selecting Your Browser Engine
+## 5. Selecting Your Browser Engine
 
 By default, the script is configured to use **Microsoft Edge**. If you prefer to use **Google Chrome**:
 
@@ -67,7 +91,7 @@ By default, the script is configured to use **Microsoft Edge**. If you prefer to
 
 ---
 
-## 5. Running via Web Dashboard (Recommended)
+## 6. Running via Web Dashboard (Recommended)
 
 The easiest and most feature-rich way to run the scraper, configure filters, and view results is via the dashboard server:
 
@@ -84,7 +108,7 @@ The easiest and most feature-rich way to run the scraper, configure filters, and
 
 ---
 
-## 6. Running via Command Line (Alternative)
+## 7. Running via Command Line (Alternative)
 
 If you prefer to run the scraper directly from the command line:
 
@@ -102,7 +126,7 @@ python details_retriever.py
 
 ---
 
-## 7. Interactive Login & Captcha Phase
+## 8. Interactive Login & Captcha Phase
 
 Whether running via Web Dashboard or Command Line, when the scraper logs in for the first time:
 1. Selenium will open a browser window and navigate to the LinkedIn login page.
@@ -117,7 +141,7 @@ Whether running via Web Dashboard or Command Line, when the scraper logs in for 
 
 ---
 
-## 8. Converting the Database to CSV
+## 9. Converting the Database to CSV
 
 Once the scraper has populated the database, you can export the collected data to formatted CSV files:
 

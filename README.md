@@ -32,13 +32,24 @@ This program consists of 2 main scripts, which read the active config from the d
 
 ```python details_retriever.py``` - populates tables with complete job attributes.
 
-## Supabase + Vercel Deployment
+## Database Setup & Migrations
 
-1. Create a Supabase project and run the SQL in `supabase_schema.sql` from the Supabase SQL editor.
-2. Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
-3. Update `supabase-config.js` with your Supabase project URL and public anon key. Do not put the service role key in this file.
-4. Deploy the repo to Vercel as a static project. `index.html` and `supabase-config.js` are enough for the frontend.
-5. The local backend server or CLI scripts will automatically write to Supabase when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present in `.env`. New jobs get `discovered_at`; detailed jobs get `posted_at` from LinkedIn listing time when LinkedIn provides it, and `scraped_at` when the detail scraper stores the full posting. Logins and active configuration are synced dynamically across SQLite and Supabase.
+The scraper dynamically supports two database backends: local **SQLite** (default) and **Supabase** (Postgres cloud, for deployments).
+
+### SQLite (Local Development)
+* Auto-initializes on server start (`linkedin_jobs.db`).
+* If you have an older database file or need to upgrade/migrate the schema to the latest version, run:
+  ```bash
+  python scripts/create_db.py
+  ```
+
+### Supabase (Cloud Deployment)
+1. **Environment Variables:** Copy `.env.example` to `.env` and set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to connect the scraper.
+2. **Frontend Configuration:** Update `supabase-config.js` with your Supabase project URL and public anon key for the frontend dashboard. (Do not put your service role key here).
+3. **Database Schema Upgrades/Migrations:**
+   - **For New Deployments:** Execute the SQL queries from `supabase_schema.sql` in the Supabase SQL Editor.
+   - **For Existing Deployments (Migrating Older Schema):** Execute the SQL queries from `supabase_migration.sql` in the Supabase SQL Editor.
+4. **Hosting:** Deploy the repository to Vercel as a static project (`index.html` and `supabase-config.js` are sufficient). The local scraper backend will automatically sync data to the cloud when environment variables are set.
 
 ## Converting Database to CSV
 

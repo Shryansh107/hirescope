@@ -211,3 +211,14 @@ def create_tables(conn, cursor):
 
     conn.commit()
     return True
+
+
+if __name__ == '__main__':
+    import sqlite3
+    db_file = 'linkedin_jobs.db'
+    print(f"[+] Connecting to SQLite database at '{db_file}'...")
+    conn = sqlite3.connect(db_file)
+    cursor = conn.cursor()
+    if create_tables(conn, cursor):
+        print("[+] Tables and columns verified/updated successfully.")
+    conn.close()

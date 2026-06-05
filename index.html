@@ -1102,7 +1102,8 @@
         const cfg = readConfigFromForm();
         cfg.profile_name = name;
         try {
-            await apiFetch('/api/config/save', { method: 'POST', body: JSON.stringify(cfg) });
+            const saved = await apiFetch('/api/config/save', { method: 'POST', body: JSON.stringify(cfg) });
+            await apiFetch(`/api/config/${saved.id}/activate`, { method: 'POST' });
             closeModal('save-modal');
             loadProfiles();
         } catch (e) { alert('Save failed: ' + e.message); }
@@ -1110,26 +1111,45 @@
 
     async function loadProfiles() {
         try {
-            const configs = await apiFetch('/api/config/list');
+            let configs = await apiFetch('/api/config/list');
+            
+            // Filter out Quick Scrape configs
+            configs = configs.filter(c => c.profile_name !== 'Quick Scrape');
+            
+            // Put the Default Tech profile first
+            const defaultTechName = 'Default Tech (0-2 years)';
+            const defaultProfile = configs.find(c => c.profile_name === defaultTechName);
+            const userProfiles = configs.filter(c => c.profile_name !== defaultTechName);
+            
+            const orderedConfigs = [];
+            if (defaultProfile) orderedConfigs.push(defaultProfile);
+            orderedConfigs.push(...userProfiles);
+            
             const container = document.getElementById('profile-list-container');
-            if (!configs.length) {
+            if (!orderedConfigs.length) {
                 container.innerHTML = '<div class="empty-state" style="padding:2rem 1rem"><i class="fa-solid fa-bookmark"></i><p style="font-size:0.85rem">No saved profiles yet</p></div>';
                 return;
             }
-            container.innerHTML = configs.map(c => `
-                <div class="profile-card ${c.is_active ? 'active-profile' : ''}">
-                    <div class="profile-card-header">
-                        <span class="profile-card-name">${escapeHtml(c.profile_name)}</span>
-                        ${c.is_active ? '<span class="profile-card-badge">Active</span>' : ''}
+            
+            container.innerHTML = orderedConfigs.map(c => {
+                const isDefault = c.profile_name === defaultTechName;
+                return `
+                    <div class="profile-card ${c.is_active ? 'active-profile' : ''}" style="${isDefault ? 'border-style: dashed; border-color: rgba(99,102,241,0.3);' : ''}">
+                        <div class="profile-card-header">
+                            <span class="profile-card-name" style="font-weight: ${isDefault ? '700' : '600'};">${escapeHtml(c.profile_name)}</span>
+                            <div style="display: flex; gap: 0.35rem;">
+                                ${isDefault ? '<span class="profile-card-badge" style="background: rgba(99,102,241,0.1); color: #818cf8; border: 1px solid rgba(99,102,241,0.2);">Default</span>' : ''}
+                                ${c.is_active ? '<span class="profile-card-badge">Active</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="profile-card-date">${formatDateTime(c.updated_at)}</div>
+                        <div class="profile-card-actions">
+                            <button class="btn btn-outline" style="flex: 2;" onclick="loadProfile(${c.id})"><i class="fa-solid fa-upload"></i> Load</button>
+                            ${!isDefault ? `<button class="btn btn-danger-outline" style="flex: 0 0 auto; min-width: 40px; padding: 0.35rem 0.5rem;" onclick="deleteProfile(${c.id})"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        </div>
                     </div>
-                    <div class="profile-card-date">${formatDateTime(c.updated_at)}</div>
-                    <div class="profile-card-actions">
-                        <button class="btn btn-outline" onclick="loadProfile(${c.id})"><i class="fa-solid fa-upload"></i> Load</button>
-                        <button class="btn btn-outline" onclick="activateProfile(${c.id})">${c.is_active ? '✓ Active' : 'Activate'}</button>
-                        <button class="btn btn-danger-outline" onclick="deleteProfile(${c.id})"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         } catch (e) { console.error('Load profiles error:', e); }
     }
 
@@ -1137,15 +1157,10 @@
         try {
             const cfg = await apiFetch(`/api/config/${id}`);
             writeConfigToForm(cfg);
-            switchTab('filters');
-        } catch (e) { alert('Load failed: ' + e.message); }
-    }
-
-    async function activateProfile(id) {
-        try {
             await apiFetch(`/api/config/${id}/activate`, { method: 'POST' });
             loadProfiles();
-        } catch (e) { alert('Activate failed: ' + e.message); }
+            switchTab('filters');
+        } catch (e) { alert('Load failed: ' + e.message); }
     }
 
     async function deleteProfile(id) {
