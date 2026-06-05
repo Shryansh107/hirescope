@@ -29,12 +29,13 @@ def _cache_path(email):
     return os.path.join(SESSION_CACHE_DIR, f"{h}.json")
 
 
-def _save_cookies(email, cookies):
+def _save_cookies(email, cookies, user_agent=None):
     """Persist session cookies to disk."""
     _ensure_cache_dir()
     data = {
         'email': email,
         'cookies': cookies,
+        'user_agent': user_agent,
         'saved_at': time.time(),
     }
     with open(_cache_path(email), 'w') as f:
@@ -45,19 +46,20 @@ def _load_cookies(email):
     """Load cached cookies if they exist and are not expired."""
     path = _cache_path(email)
     if not os.path.exists(path):
-        return None
+        return None, None
     try:
         with open(path, 'r') as f:
             data = json.load(f)
         if time.time() - data.get('saved_at', 0) > COOKIE_MAX_AGE:
-            return None
-        return data.get('cookies')
+            return None, None
+        return data.get('cookies'), data.get('user_agent')
     except Exception:
-        return None
+        return None, None
 
 
 def _build_headers(session):
     """Build LinkedIn API request headers from a session's cookies."""
+    ua = getattr(session, 'user_agent', None) or 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36'
     return {
         'Authority': 'www.linkedin.com',
         'Method': 'GET',
@@ -67,7 +69,7 @@ def _build_headers(session):
         'Accept-Language': 'en-US,en;q=0.9',
         'Cookie': "; ".join([f"{key}={value}" for key, value in session.cookies.items()]),
         'Csrf-Token': session.cookies.get('JSESSIONID', '').strip('"'),
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+        'User-Agent': ua,
         'X-Li-Track': '{"clientVersion":"1.13.5589","mpVersion":"1.13.5589","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":360,"displayHeight":800}'
     }
 
@@ -80,11 +82,12 @@ def create_session(email, password):
     Selenium entirely.  Otherwise launches a browser for interactive login.
     """
     # Try cookie cache first
-    cached = _load_cookies(email)
+    cached, cached_ua = _load_cookies(email)
     if cached:
         session = requests.Session()
         for cookie in cached:
             session.cookies.set(cookie['name'], cookie['value'])
+        session.user_agent = cached_ua
         # Quick validation — try a lightweight request
         try:
             headers = _build_headers(session)
@@ -131,15 +134,17 @@ def create_session(email, password):
     input('Press ENTER after a successful login for "{}": '.format(email))
     driver.get('https://www.linkedin.com/jobs/search/?')
     time.sleep(1)
+    user_agent = driver.execute_script("return navigator.userAgent")
     cookies = driver.get_cookies()
     driver.quit()
 
     # Save cookies to cache
-    _save_cookies(email, cookies)
+    _save_cookies(email, cookies, user_agent)
 
     session = requests.Session()
     for cookie in cookies:
         session.cookies.set(cookie['name'], cookie['value'])
+    session.user_agent = user_agent
     return session
 
 
@@ -296,7 +301,9 @@ def build_search_url(config: dict, start: int = 0) -> str:
     )
 
     from urllib.parse import quote
-    url = f"{base}&query={quote(query)}&start={start}"
+    # Do NOT manually encode structural query parenthesis/colons/commas,
+    # but encode the keyword/location value and let requests handle the query string.
+    url = f"{base}&query={query}&start={start}"
     if keyword_str:
         url += f"&keywords={quote(keyword_str)}"
     return url
