@@ -290,6 +290,7 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
                 LEFT JOIN companies c ON j.company_id = c.company_id
                 LEFT JOIN salaries s ON j.job_id = s.job_id
                 WHERE j.scraped != -2
+                GROUP BY j.job_id
                 ORDER BY j.job_id DESC
             """
             cursor.execute(query)

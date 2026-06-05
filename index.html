@@ -1251,7 +1251,7 @@
             if (d.min_salary || d.max_salary) { const mn = d.min_salary?Math.round(d.min_salary).toLocaleString():''; const mx = d.max_salary?Math.round(d.max_salary).toLocaleString():''; sal = `${d.currency||'USD'} ${mn}${mn&&mx?' - ':''}${mx}`; }
             document.getElementById('modal-salary').textContent = sal;
             document.getElementById('modal-relevance').textContent = d.relevance_score != null ? d.relevance_score + '/100' : 'N/A';
-            document.getElementById('modal-posted-at').textContent = formatDateTime(d.posted_at);
+            document.getElementById('modal-posted-at').textContent = formatDateTimeWithTime(d.posted_at);
             document.getElementById('modal-scraped-at').textContent = formatDateTimeWithTime(d.scraped_at);
             document.getElementById('modal-description').textContent = d.description || 'No description available.';
             if (d.skills_desc) { document.getElementById('modal-skills-section').style.display = 'block'; document.getElementById('modal-skills-container').textContent = d.skills_desc; } else { document.getElementById('modal-skills-section').style.display = 'none'; }
