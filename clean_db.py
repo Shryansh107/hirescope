@@ -1,5 +1,6 @@
 import sqlite3
-from scripts.fetch import is_valid_sde_job
+from scripts.config_db import get_active_config
+from scripts.helpers import matches_config_filters
 
 DB_FILE = 'linkedin_jobs.db'
 
@@ -14,14 +15,23 @@ def clean_database():
             print("No jobs table found in database. Nothing to clean.")
             conn.close()
             return
-            
+        
+        # Load active config for filtering rules
+        config = get_active_config()
+        if not config:
+            print("[!] No active scrape config found. Skipping clean (no filter rules to apply).")
+            conn.close()
+            return
+
+        print(f'[+] Using config: "{config.get("profile_name", "unnamed")}"')
+
         cursor.execute("SELECT job_id, title FROM jobs;")
         jobs = cursor.fetchall()
         
         deleted_count = 0
         for job_id, title in jobs:
-            if not is_valid_sde_job(title):
-                print(f"[-] Deleting non-SDE/Senior job {job_id}: {title}")
+            if not matches_config_filters(title, config):
+                print(f"[-] Deleting non-matching job {job_id}: {title}")
                 
                 # Delete from all related tables
                 cursor.execute("DELETE FROM jobs WHERE job_id = ?;", (job_id,))
@@ -34,7 +44,7 @@ def clean_database():
                 
         conn.commit()
         conn.close()
-        print(f"\n[+] Clean-up complete! Removed {deleted_count} non-SDE or senior/business jobs from '{DB_FILE}'.")
+        print(f"\n[+] Clean-up complete! Removed {deleted_count} non-matching jobs from '{DB_FILE}'.")
         
     except Exception as e:
         print(f"Error cleaning database: {str(e)}")

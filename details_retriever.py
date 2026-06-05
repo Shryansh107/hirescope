@@ -3,7 +3,10 @@ from scripts.database_scripts import insert_data
 from scripts.fetch import JobDetailRetriever
 import sqlite3
 from scripts.helpers import clean_job_postings
+from scripts.config_db import get_active_config
+from scripts.relevance import compute_relevance
 from scripts.supabase_client import get_supabase_client, using_supabase
+import json
 import time
 import random
 
@@ -19,6 +22,10 @@ else:
     cursor = conn.cursor()
     create_tables(conn, cursor)
 
+# Load active config for relevance scoring
+config = get_active_config()
+if config:
+    print(f'[+] Using active config for relevance scoring: "{config.get("profile_name", "unnamed")}"')
 
 job_detail_retriever = JobDetailRetriever()
 
@@ -33,6 +40,16 @@ while True:
 
     details = job_detail_retriever.get_job_details(random.sample(result, min(MAX_UPDATES, len(result))))
     details = clean_job_postings(details)
+
+    # Compute relevance scores if config is available
+    if config:
+        for job_id, job_info in details.items():
+            if 'error' not in job_info and 'jobs' in job_info:
+                job_flat = dict(job_info.get('jobs', {}))
+                score, matched = compute_relevance(job_flat, config)
+                job_info['relevance_score'] = score
+                job_info['matched_keywords'] = json.dumps(matched)
+
     insert_data(details, conn, cursor)
     print('UPDATED {} VALUES IN DB'.format(len(details)))
 
