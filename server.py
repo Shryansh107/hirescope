@@ -262,7 +262,7 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
                     j.job_id, j.title,
                     c.name as company_name,
                     j.location, j.formatted_work_type,
-                    j.formatted_experience_level,
+                    j.formatted_experience_level, j.years_experience,
                     s.min_salary, s.max_salary, s.pay_period, s.currency,
                     j.views, j.applies, j.sponsored, j.scraped,
                     j.job_posting_url, j.relevance_score, j.matched_keywords,

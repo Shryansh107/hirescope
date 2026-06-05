@@ -723,7 +723,7 @@
                             <th class="sortable" onclick="handleSort('company_name')">Company <i class="fa-solid fa-sort"></i></th>
                             <th class="sortable" onclick="handleSort('location')">Location <i class="fa-solid fa-sort"></i></th>
                             <th>Type</th>
-                            <th>Exp</th>
+                            <th class="sortable" onclick="handleSort('years_experience')">Exp <i class="fa-solid fa-sort"></i></th>
                             <th>Salary</th>
                             <th class="sortable" onclick="handleSort('relevance_score')">Relevance <i class="fa-solid fa-sort"></i></th>
                             <th class="sortable" onclick="handleSort('scraped')">Status <i class="fa-solid fa-sort"></i></th>
@@ -1171,8 +1171,9 @@
     function sortJobs(col, dir, render = true) {
         filteredJobs.sort((a, b) => {
             let va = a[col], vb = b[col];
-            if (va == null) va = col === 'relevance_score' ? -1 : '';
-            if (vb == null) vb = col === 'relevance_score' ? -1 : '';
+            if (va == null && vb != null) return 1;
+            if (vb == null && va != null) return -1;
+            if (va == null && vb == null) return 0;
             if (typeof va === 'string') va = va.toLowerCase();
             if (typeof vb === 'string') vb = vb.toLowerCase();
             return va < vb ? (dir === 'asc' ? -1 : 1) : va > vb ? (dir === 'asc' ? 1 : -1) : 0;
