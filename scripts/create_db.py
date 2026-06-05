@@ -1,3 +1,10 @@
+def ensure_column(cursor, table_name, column_name, column_type):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = {row[1] for row in cursor.fetchall()}
+    if column_name not in columns:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+
+
 def create_tables(conn, cursor):
     cursor.execute('''
           CREATE TABLE IF NOT EXISTS jobs (
@@ -26,9 +33,15 @@ def create_tables(conn, cursor):
           listed_time TEXT,
           degree TEXT,
           posting_domain TEXT,
-          sponsored INTEGER
+          sponsored INTEGER,
+          posted_at TEXT,
+          scraped_at TEXT,
+          discovered_at TEXT
         );
     ''')
+    ensure_column(cursor, 'jobs', 'posted_at', 'TEXT')
+    ensure_column(cursor, 'jobs', 'scraped_at', 'TEXT')
+    ensure_column(cursor, 'jobs', 'discovered_at', 'TEXT')
 
     cursor.execute('''
       CREATE TABLE IF NOT EXISTS skills (

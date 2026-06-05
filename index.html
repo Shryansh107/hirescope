@@ -878,6 +878,7 @@
                             <th class="sortable" onclick="handleSort('formatted_work_type')">Work Type <i class="fa-solid fa-sort"></i></th>
                             <th class="sortable" onclick="handleSort('formatted_experience_level')">Experience <i class="fa-solid fa-sort"></i></th>
                             <th>Salary</th>
+                            <th class="sortable" onclick="handleSort('posted_at')">Posted <i class="fa-solid fa-sort"></i></th>
                             <th>Views / Applies</th>
                             <th class="sortable" onclick="handleSort('scraped')">Status <i class="fa-solid fa-sort"></i></th>
                             <th style="width: 100px;">Actions</th>
@@ -957,6 +958,20 @@
                             <div class="meta-value" id="modal-salary">N/A</div>
                         </div>
                     </div>
+                    <div class="meta-item">
+                        <i class="fa-regular fa-calendar"></i>
+                        <div>
+                            <div class="meta-value-label">Posted</div>
+                            <div class="meta-value" id="modal-posted-at">N/A</div>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <div>
+                            <div class="meta-value-label">Scraped</div>
+                            <div class="meta-value" id="modal-scraped-at">N/A</div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Description section -->
@@ -987,8 +1002,13 @@
         </div>
     </div>
 
+    <script src="supabase-config.js"></script>
     <!-- Script Block -->
     <script>
+        const supabaseConfig = window.SUPABASE_CONFIG || {};
+        const SUPABASE_URL = (supabaseConfig.url || '').replace(/\/$/, '');
+        const SUPABASE_ANON_KEY = supabaseConfig.anonKey || '';
+
         // State variables
         let allJobs = [];
         let filteredJobs = [];
@@ -1026,18 +1046,67 @@
         const detailsModal = document.getElementById('details-modal');
         const btnCloseModal = document.getElementById('btn-close-modal');
 
-        // Fetch jobs from backend API
+        function ensureSupabaseConfig() {
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY || SUPABASE_URL.includes('your-project-ref')) {
+                throw new Error('Missing Supabase config. Update supabase-config.js with your Supabase URL and anon key.');
+            }
+        }
+
+        async function supabaseFetch(path, range = null) {
+            ensureSupabaseConfig();
+            const headers = {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+            };
+            if (range) {
+                headers.Range = range;
+            }
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+                headers
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(`Supabase request failed: ${response.status} ${message}`);
+            }
+            return response.json();
+        }
+
+        async function fetchAllSupabaseRows(path) {
+            const rows = [];
+            const chunkSize = 1000;
+            let start = 0;
+
+            while (true) {
+                const batch = await supabaseFetch(path, `${start}-${start + chunkSize - 1}`);
+                rows.push(...batch);
+                if (batch.length < chunkSize) break;
+                start += chunkSize;
+            }
+
+            return rows;
+        }
+
+        function formatDateTime(value) {
+            if (!value) return 'N/A';
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return 'N/A';
+            return date.toLocaleString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Fetch jobs from Supabase
         async function fetchJobs() {
             try {
-                const response = await fetch('/api/jobs');
-                if (!response.ok) {
-                    throw new Error('API request failed');
-                }
-                allJobs = await response.json();
+                allJobs = await fetchAllSupabaseRows('job_dashboard?select=*&order=job_id.desc');
                 
                 // Update live indicator
                 liveIndicator.className = 'stats-badge';
-                liveIndicator.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--success); font-size: 0.75rem;"></i> Connected';
+                liveIndicator.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--success); font-size: 0.75rem;"></i> Connected to Supabase';
                 
                 // Calculate metrics
                 calculateMetrics();
@@ -1051,7 +1120,7 @@
                 tableLoading.style.display = 'none';
                 tableEmpty.style.display = 'flex';
                 tableEmpty.querySelector('h3').textContent = 'Database Connection Failed';
-                tableEmpty.querySelector('p').textContent = 'Please make sure server.py is running and connected to linkedin_jobs.db.';
+                tableEmpty.querySelector('p').textContent = error.message || 'Check supabase-config.js, Supabase RLS policies, and the job_dashboard view.';
             }
         }
 
@@ -1266,6 +1335,7 @@
                     
                 // Experience badge
                 const expLevel = job.formatted_experience_level || 'N/A';
+                const postedAt = formatDateTime(job.posted_at);
                 
                 // Views / Applies
                 const viewsApplies = `
@@ -1283,6 +1353,7 @@
                         <td>${workTypeBadge}</td>
                         <td>${expLevel}</td>
                         <td><span class="${job.min_salary || job.max_salary ? 'salary-badge' : ''}">${salaryText}</span></td>
+                        <td>${postedAt}</td>
                         <td>${viewsApplies}</td>
                         <td>${statusBadge}</td>
                         <td>
@@ -1327,6 +1398,8 @@
             document.getElementById('modal-worktype').textContent = 'Loading...';
             document.getElementById('modal-experience').textContent = 'Loading...';
             document.getElementById('modal-salary').textContent = 'Loading...';
+            document.getElementById('modal-posted-at').textContent = 'Loading...';
+            document.getElementById('modal-scraped-at').textContent = 'Loading...';
             document.getElementById('modal-description').innerHTML = '<div class="spinner"></div>';
             document.getElementById('modal-skills-section').style.display = 'none';
             document.getElementById('modal-link-apply').style.display = 'none';
@@ -1335,10 +1408,9 @@
             detailsModal.classList.add('active');
             
             try {
-                const response = await fetch(`/api/job/${jobId}`);
-                if (!response.ok) throw new Error('Failed to load details');
-                
-                const data = await response.json();
+                const rows = await supabaseFetch(`job_details?select=*&job_id=eq.${jobId}&limit=1`);
+                if (!rows.length) throw new Error('Job not found');
+                const data = rows[0];
                 
                 // Populate details
                 document.getElementById('modal-job-title').textContent = data.title || 'No Title';
@@ -1361,6 +1433,8 @@
                     }
                 }
                 document.getElementById('modal-salary').textContent = salaryText;
+                document.getElementById('modal-posted-at').textContent = formatDateTime(data.posted_at || data.listed_time || data.original_listed_time);
+                document.getElementById('modal-scraped-at').textContent = formatDateTime(data.scraped_at);
                 
                 // Description
                 document.getElementById('modal-description').textContent = data.description || 
@@ -1391,7 +1465,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('modal-job-title').textContent = 'Error Loading Details';
-                document.getElementById('modal-description').textContent = 'Unable to fetch details from local server. Make sure server.py is still running.';
+                document.getElementById('modal-description').textContent = err.message || 'Unable to fetch details from Supabase.';
             }
         }
 

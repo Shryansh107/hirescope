@@ -33,6 +33,21 @@ It's important to note that while ```search_retriever.py``` typically runs smoot
 - Experiment with different time delays to find the optimal settings.
 - Run details_retriever.py during periods of lower online activity, such as late-night hours and weekends, to catch up with the progress of search_retriever.py. This will ensure that both processes remain synchronized and up to date.
 
+## Supabase + Vercel Deployment
+
+1. Create a Supabase project and run the SQL in `supabase_schema.sql` from the Supabase SQL editor.
+2. Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
+3. Update `supabase-config.js` with your Supabase project URL and public anon key. Do not put the service role key in this file.
+4. Deploy the repo to Vercel as a static project. `index.html` and `supabase-config.js` are enough for the frontend.
+5. Run the scraper scripts from your machine or a server with `.env` present:
+
+```bash
+python search_retriever.py
+python details_retriever.py
+```
+
+When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, the scraper writes to Supabase instead of SQLite. New jobs get `discovered_at`; detailed jobs get `posted_at` from LinkedIn listing time when LinkedIn provides it, and `scraped_at` when the detail scraper stores the full posting.
+
 ## Converting Database to CSV
 
 ```python to_csv.py --folder <destination folder> --database <linkedin_jobs.db>```

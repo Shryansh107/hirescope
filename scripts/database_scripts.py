@@ -2,6 +2,8 @@ import time
 import json
 import os
 
+from scripts.supabase_client import get_supabase_client, linkedin_time_to_iso, using_supabase, utc_now_iso
+
 
 def load_excluded_companies():
     path = 'excluded_companies.json'
@@ -14,7 +16,117 @@ def load_excluded_companies():
     return []
 
 
+def _job_posted_at(job_values):
+    return linkedin_time_to_iso(job_values.get("listed_time") or job_values.get("original_listed_time"))
+
+
+def insert_data_supabase(data):
+    client = get_supabase_client()
+    excluded = load_excluded_companies()
+
+    for job_id, job_info in data.items():
+        if "error" in job_info:
+            client.update_job(job_id, {"scraped": -1})
+            continue
+
+        company_name = job_info.get("companies", {}).get("name")
+        if company_name and company_name.strip().lower() in excluded:
+            print(f"[-] Excluding job {job_id} from company: {company_name}")
+            client.update_job(job_id, {"scraped": -2})
+            continue
+
+        company_id = job_info["jobs"].get("company_id")
+
+        companies = job_info.get("companies", {})
+        if companies and company_id is not None:
+            client.upsert("companies", [{"company_id": company_id, **companies}], "company_id")
+
+        jobs = job_info.get("jobs", {})
+        if jobs:
+            now = utc_now_iso()
+            client.update_job(job_id, {
+                **jobs,
+                "scraped": round(time.time()),
+                "scraped_at": now,
+                "posted_at": _job_posted_at(jobs),
+            })
+
+        benefits = job_info.get("benefits", {})
+        benefit_rows = []
+        for benefit in benefits.get("listed_benefits", []):
+            benefit_rows.append({"job_id": job_id, "inferred": 0, "type": benefit})
+        for benefit in benefits.get("inferred_benefits", []):
+            benefit_rows.append({"job_id": job_id, "inferred": 1, "type": benefit})
+        client.upsert("benefits", benefit_rows, "job_id,type")
+
+        industries = job_info.get("industries", {})
+        industry_rows = []
+        job_industry_rows = []
+        industry_ids = industries.get("industry_ids", [])
+        industry_names = industries.get("industry_names", [])
+        for index, industry_id in enumerate(industry_ids):
+            industry_name = industry_names[index] if len(industry_names) == len(industry_ids) else None
+            industry_rows.append({"industry_id": industry_id, "industry_name": industry_name})
+            job_industry_rows.append({"job_id": job_id, "industry_id": industry_id})
+        client.upsert("industries", industry_rows, "industry_id")
+        client.upsert("job_industries", job_industry_rows, "job_id,industry_id")
+
+        skills = job_info.get("skills", {})
+        skill_rows = []
+        job_skill_rows = []
+        skill_abrs = skills.get("skill_abrs", [])
+        skill_names = skills.get("skill_name", [])
+        for index, skill_abr in enumerate(skill_abrs):
+            skill_name = skill_names[index] if len(skill_names) == len(skill_abrs) else None
+            skill_rows.append({"skill_abr": skill_abr, "skill_name": skill_name})
+            job_skill_rows.append({"job_id": job_id, "skill_abr": skill_abr})
+        client.upsert("skills", skill_rows, "skill_abr")
+        client.upsert("job_skills", job_skill_rows, "job_id,skill_abr")
+
+        salary_rows = []
+        for compensation_type, values in job_info.get("salaries", {}).items():
+            for compensation in values:
+                salary_rows.append({
+                    "job_id": job_id,
+                    "max_salary": compensation.get("maxSalary"),
+                    "med_salary": compensation.get("medianSalary"),
+                    "min_salary": compensation.get("minSalary"),
+                    "pay_period": compensation.get("payPeriod"),
+                    "currency": compensation.get("currencyCode"),
+                    "compensation_type": compensation.get("compensationType", compensation_type),
+                })
+        client.insert("salaries", salary_rows)
+
+        employee_counts = job_info.get("employee_counts", {})
+        if employee_counts and company_id is not None:
+            client.upsert("employee_counts", [{
+                "company_id": company_id,
+                "employee_count": employee_counts.get("employee_count"),
+                "follower_count": employee_counts.get("follower_count"),
+                "time_recorded": round(time.time()),
+            }], "employee_count,company_id")
+
+        company_industries = [
+            {"company_id": company_id, "industry": industry}
+            for industry in job_info.get("company_industries", {}).get("industries", [])
+            if company_id is not None
+        ]
+        client.upsert("company_industries", company_industries, "company_id,industry")
+
+        company_specialities = [
+            {"company_id": company_id, "speciality": speciality}
+            for speciality in job_info.get("company_specialities", {}).get("specialities", [])
+            if company_id is not None
+        ]
+        client.upsert("company_specialities", company_specialities, "company_id,speciality")
+
+    return True
+
+
 def insert_data(data, conn, cursor):
+    if using_supabase():
+        return insert_data_supabase(data)
+
     excluded = load_excluded_companies()
     for job_id, job_info in data.items():
         if 'error' in job_info:
@@ -32,11 +144,12 @@ def insert_data(data, conn, cursor):
         for table_name in job_info:
             if len(job_info[table_name]) > 0:
                 if table_name == 'jobs':
+                    posted_at = _job_posted_at(job_info[table_name])
                     column_names = list(job_info[table_name].keys())
                     values = tuple(job_info[table_name][column] for column in column_names)
                     set_clause = ", ".join([f"{column} = ?" for column in column_names])
-                    set_clause += ", scraped = ?"
-                    values_for_update = values + (round(time.time()), job_id)  # Adding the job_id as the last value
+                    set_clause += ", scraped = ?, scraped_at = ?, posted_at = ?"
+                    values_for_update = values + (round(time.time()), utc_now_iso(), posted_at, job_id)  # Adding the job_id as the last value
                     query = f"UPDATE {table_name} SET {set_clause} WHERE job_id = ?"
                     cursor.execute(query, values_for_update)
 
@@ -108,9 +221,24 @@ def insert_data(data, conn, cursor):
 
 
 def insert_job_postings(job_ids, conn, cursor):
+    if using_supabase():
+        client = get_supabase_client()
+        rows = []
+        now = utc_now_iso()
+        for job_id, info in job_ids.items():
+            rows.append({
+                "job_id": job_id,
+                "title": info["title"],
+                "sponsored": info["sponsored"],
+                "discovered_at": now,
+            })
+        client.upsert("jobs", rows, "job_id")
+        return True
+
     for job_id, info in job_ids.items():
-        cursor.execute('INSERT OR IGNORE INTO jobs (job_id, title, sponsored) VALUES (?, ?, ?)', (job_id, info['title'], info['sponsored']))
+        cursor.execute(
+            'INSERT OR IGNORE INTO jobs (job_id, title, sponsored, discovered_at) VALUES (?, ?, ?, ?)',
+            (job_id, info['title'], info['sponsored'], utc_now_iso())
+        )
     conn.commit()
     return True
-
-
