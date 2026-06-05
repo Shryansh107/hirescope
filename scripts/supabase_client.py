@@ -246,6 +246,13 @@ class SupabaseClient:
         }) or []
         return rows[0] if rows else None
 
+    def cleanup_stale_runs(self):
+        self._request(
+            "PATCH", "scrape_runs",
+            params={"status": "in.(running,stopping)"},
+            payload={"status": "failed"},
+        )
+
     def select_runs(self, limit=20):
         rows = self._request("GET", "scrape_runs", params={
             "select": "*",

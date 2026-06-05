@@ -316,3 +316,21 @@ def append_run_error(run_id: int, error_msg: str):
         )
         conn.commit()
         conn.close()
+
+
+def cleanup_stale_runs():
+    """Reset any stale running/stopping jobs back to 'failed' state on startup."""
+    if using_supabase():
+        from scripts.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        client.cleanup_stale_runs()
+    else:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE scrape_runs SET status = 'failed', finished_at = ? "
+            "WHERE status IN ('running', 'stopping')",
+            (utc_now_iso(),)
+        )
+        conn.commit()
+        conn.close()

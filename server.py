@@ -12,6 +12,7 @@ from scripts.config_db import (
     save_config, get_config, list_configs, delete_config,
     activate_config, get_active_config,
     create_run, update_run_progress, get_run, get_current_run, list_runs,
+    cleanup_stale_runs,
 )
 
 PORT = 8000
@@ -404,6 +405,12 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
 def run_server():
     server_address = ('', PORT)
     httpd = http.server.HTTPServer(server_address, JobServerHandler)
+    # Reset any stale runs left from a previous crash/interruption
+    try:
+        cleanup_stale_runs()
+    except Exception as e:
+        print(f"[!] Warning: Failed to cleanup stale scrape runs: {e}")
+
     print(f"\n=======================================================")
     print(f"  LinkedIn Job Scraper Dashboard")
     print(f"  Running locally at: http://localhost:{PORT}/")
