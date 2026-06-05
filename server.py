@@ -67,7 +67,7 @@ DEFAULT_TECH_CONFIG = {
     'industry': [],
     'date_posted': 'past_week',
     'max_jobs_to_scrape': 500,
-    'pages_to_scrape': 40,
+    'pages_to_scrape': 100,
     'weight_title_match': 8,
     'weight_skills_match': 6,
     'weight_salary_match': 4,

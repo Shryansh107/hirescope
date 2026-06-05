@@ -60,7 +60,7 @@ def run_scrape(run_id: int):
         print("[scrape_runner] No active config — aborting")
         return
 
-    max_pages = config.get('pages_to_scrape', 40)
+    max_pages = config.get('pages_to_scrape', 100)
     update_run_progress(run_id, total_pages=max_pages, status='running')
     print(f"[scrape_runner] Starting continuous run {run_id} — scanning up to {max_pages} pages per cycle")
 
