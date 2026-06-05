@@ -14,6 +14,17 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 
+INTEGER_COLUMNS = {
+    "benefits": {"inferred"},
+    "companies": {"company_size"},
+    "employee_counts": {"employee_count", "follower_count", "time_recorded"},
+    "industries": {"industry_id"},
+    "job_industries": {"job_id", "industry_id"},
+    "job_skills": {"job_id"},
+    "jobs": {"job_id", "scraped", "company_id", "applies", "remote_allowed", "years_experience", "views"},
+    "salaries": {"job_id"},
+}
+
 
 def using_supabase():
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
@@ -116,6 +127,8 @@ class SupabaseClient:
     def upsert(self, table, rows, on_conflict):
         if not rows:
             return
+        rows = _dedupe_rows(rows, on_conflict)
+        rows = _coerce_rows(table, rows)
         self._request(
             "POST",
             table,
@@ -127,11 +140,41 @@ class SupabaseClient:
     def insert(self, table, rows):
         if not rows:
             return
+        rows = _coerce_rows(table, rows)
         self._request("POST", table, payload=rows)
 
     def update_job(self, job_id, values):
+        values = _coerce_row("jobs", values)
         self._request("PATCH", "jobs", params={"job_id": f"eq.{job_id}"}, payload=values)
 
 
 def get_supabase_client():
     return SupabaseClient()
+
+
+def _dedupe_rows(rows, on_conflict):
+    conflict_columns = [column.strip() for column in on_conflict.split(",") if column.strip()]
+    if not conflict_columns:
+        return rows
+
+    deduped = {}
+    for row in rows:
+        key = tuple(row.get(column) for column in conflict_columns)
+        deduped[key] = row
+    return list(deduped.values())
+
+
+def _coerce_rows(table, rows):
+    return [_coerce_row(table, row) for row in rows]
+
+
+def _coerce_row(table, row):
+    integer_columns = INTEGER_COLUMNS.get(table, set())
+    if not integer_columns:
+        return row
+
+    coerced = dict(row)
+    for column in integer_columns:
+        if isinstance(coerced.get(column), bool):
+            coerced[column] = int(coerced[column])
+    return coerced
