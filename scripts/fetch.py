@@ -291,13 +291,14 @@ def build_search_url(config: dict, start: int = 0) -> str:
     # Combine query
     query = (
         f'(origin:JOB_SEARCH_PAGE_OTHER_ENTRY'
-        f',keywords:{keyword_str}'
         f',selectedFilters:({filter_str})'
         f',spellCorrectionEnabled:true)'
     )
 
     from urllib.parse import quote
     url = f"{base}&query={quote(query)}&start={start}"
+    if keyword_str:
+        url += f"&keywords={quote(keyword_str)}"
     return url
 
 
