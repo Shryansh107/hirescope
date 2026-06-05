@@ -638,8 +638,8 @@
                     </div>
                 </div>
 
-                <!-- Scraping Limits -->
-                <div class="accordion-section">
+                <!-- Scraping Limits (Hidden as scraping runs continuously now) -->
+                <div class="accordion-section" style="display: none;">
                     <div class="accordion-header" onclick="toggleAccordion(this)">Scraping Limits <i class="fa-solid fa-chevron-down"></i></div>
                     <div class="accordion-body">
                         <div class="form-row">
@@ -709,7 +709,13 @@
 
             <!-- Table -->
             <div class="table-section">
-                <div class="table-header-bar"><h2 id="jobs-count-text">Jobs (0)</h2><div style="font-size:0.82rem;color:var(--text-muted)" id="showing-text">Showing 0</div></div>
+                <div class="table-header-bar">
+                    <h2 id="jobs-count-text">Jobs (0)</h2>
+                    <div style="display:flex;align-items:center;gap:1rem;">
+                        <button class="btn btn-outline" id="btn-sort-recent" onclick="sortByMostRecent()" style="padding:0.35rem 0.6rem;font-size:0.75rem;"><i class="fa-solid fa-clock"></i> Most Recent</button>
+                        <div style="font-size:0.82rem;color:var(--text-muted)" id="showing-text">Showing 0</div>
+                    </div>
+                </div>
                 <div class="table-wrapper">
                     <table id="jobs-table">
                         <thead><tr>
@@ -745,6 +751,7 @@
                     <div class="meta-item"><i class="fa-solid fa-dollar-sign"></i><div><div class="meta-value-label">Salary</div><div class="meta-value" id="modal-salary">N/A</div></div></div>
                     <div class="meta-item"><i class="fa-solid fa-star"></i><div><div class="meta-value-label">Relevance</div><div class="meta-value" id="modal-relevance">N/A</div></div></div>
                     <div class="meta-item"><i class="fa-regular fa-calendar"></i><div><div class="meta-value-label">Posted</div><div class="meta-value" id="modal-posted-at">N/A</div></div></div>
+                    <div class="meta-item"><i class="fa-regular fa-clock"></i><div><div class="meta-value-label">Scraped</div><div class="meta-value" id="modal-scraped-at">N/A</div></div></div>
                 </div>
                 <div><h3 class="modal-section-title">Description</h3><div class="job-description-content" id="modal-description">No description available.</div></div>
                 <div id="modal-skills-section" style="display:none"><h3 class="modal-section-title">Skills</h3><div class="job-description-content" id="modal-skills-container"></div></div>
@@ -876,6 +883,7 @@
         document.querySelectorAll(`#${groupId} input`).forEach(i => { i.checked = Array.isArray(values) && values.includes(i.value); });
     }
     function formatDateTime(v) { if (!v) return 'N/A'; const d = new Date(v); return isNaN(d.getTime()) ? 'N/A' : d.toLocaleDateString(undefined, {year:'numeric',month:'short',day:'numeric'}); }
+    function formatDateTimeWithTime(v) { if (!v) return 'N/A'; const d = new Date(v); return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString(undefined, {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
 
     // ═══════════════════════════════════════════════════════════════════
     // Config Read/Write from form
@@ -1153,6 +1161,13 @@
         sortJobs(col, sortDirection, true);
     };
 
+    window.sortByMostRecent = function() {
+        sortedColumn = 'posted_at';
+        sortDirection = 'desc';
+        document.querySelectorAll('th.sortable i').forEach(i => i.className = 'fa-solid fa-sort');
+        sortJobs('posted_at', 'desc', true);
+    };
+
     function sortJobs(col, dir, render = true) {
         filteredJobs.sort((a, b) => {
             let va = a[col], vb = b[col];
@@ -1236,6 +1251,7 @@
             document.getElementById('modal-salary').textContent = sal;
             document.getElementById('modal-relevance').textContent = d.relevance_score != null ? d.relevance_score + '/100' : 'N/A';
             document.getElementById('modal-posted-at').textContent = formatDateTime(d.posted_at);
+            document.getElementById('modal-scraped-at').textContent = formatDateTimeWithTime(d.scraped_at);
             document.getElementById('modal-description').textContent = d.description || 'No description available.';
             if (d.skills_desc) { document.getElementById('modal-skills-section').style.display = 'block'; document.getElementById('modal-skills-container').textContent = d.skills_desc; } else { document.getElementById('modal-skills-section').style.display = 'none'; }
             document.getElementById('modal-link-linkedin').href = d.job_posting_url || '#';

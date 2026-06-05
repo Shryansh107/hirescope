@@ -266,7 +266,7 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
                     s.min_salary, s.max_salary, s.pay_period, s.currency,
                     j.views, j.applies, j.sponsored, j.scraped,
                     j.job_posting_url, j.relevance_score, j.matched_keywords,
-                    j.posted_at, j.discovered_at
+                    j.posted_at, j.scraped_at, j.discovered_at
                 FROM jobs j
                 LEFT JOIN companies c ON j.company_id = c.company_id
                 LEFT JOIN salaries s ON j.job_id = s.job_id
