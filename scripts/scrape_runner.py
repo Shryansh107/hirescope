@@ -90,7 +90,7 @@ def run_scrape(run_id: int):
             break
 
         try:
-            start_offset = page * 100
+            start_offset = page * 25
             jobs = searcher.get_jobs(start=start_offset)
         except Exception as e:
             append_run_error(run_id, f"Search page {page + 1} error: {e}")

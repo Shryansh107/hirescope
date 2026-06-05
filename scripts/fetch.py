@@ -235,7 +235,7 @@ def build_search_url(config: dict, start: int = 0) -> str:
     base = (
         'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards'
         '?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187'
-        '&count=100'
+        '&count=25'
         '&q=jobSearch'
     )
 
@@ -323,7 +323,7 @@ class JobSearchRetriever:
             self.job_search_link = (
                 f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards'
                 f'?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187'
-                f'&count=100&q=jobSearch&query={search_query}&start=0'
+                f'&count=25&q=jobSearch&query={search_query}&start=0'
             )
 
     def get_jobs(self, start=0):
