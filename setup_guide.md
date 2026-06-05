@@ -42,11 +42,10 @@ The scraper reads credentials from `logins.csv`. Since a template is provided:
 2. **Open `logins.csv` and add your account details:**
    * **emails**: The email addresses for your LinkedIn accounts.
    * **passwords**: The passwords corresponding to those accounts.
-   * **method**: Use `search` for accounts that perform job searches, and `details` for accounts that retrieve individual job descriptions and details. 
-   
-   > [!IMPORTANT]
-   > * You must have at least one account mapped to `search` and at least one mapped to `details`.
-   > * If you only have **one** LinkedIn account, you can duplicate its details across two lines, specifying `search` for one and `details` for the other.
+
+   > [!NOTE]
+   > * A single account can now handle both search and detail retrieval. You do not need to duplicate credentials or specify a "method" column.
+   > * You can add multiple accounts to form a shared session pool, which helps bypass LinkedIn's rate limits by rotation.
 
 ---
 
@@ -68,9 +67,26 @@ By default, the script is configured to use **Microsoft Edge**. If you prefer to
 
 ---
 
-## 5. Running the Scraper
+## 5. Running via Web Dashboard (Recommended)
 
-The scraper consists of two main programs designed to run in parallel:
+The easiest and most feature-rich way to run the scraper, configure filters, and view results is via the dashboard server:
+
+1. **Start the backend server:**
+   ```bash
+   python server.py
+   ```
+2. **Open the frontend in your browser:**
+   Open `index.html` in your web browser (or serve it using a local HTTP server).
+3. **Configure scraping parameters:**
+   Use the UI sidebar to customize keywords, job titles, exclusions, locations, salaries, etc.
+4. **Trigger a run:**
+   Click **"Start Scraping"** on the dashboard. The server will run the scraper in a background thread and stream progress in real-time.
+
+---
+
+## 6. Running via Command Line (Alternative)
+
+If you prefer to run the scraper directly from the command line:
 
 ### Step A: Start the Search Retriever (Discovers Job Listings)
 Run this script to find new job postings and insert the initial IDs and basic fields into the database:
@@ -79,32 +95,34 @@ python search_retriever.py
 ```
 
 ### Step B: Start the Details Retriever (Enriches Job Attributes)
-In a **separate terminal window** (with your virtual environment activated, if applicable), run this script to fetch details (salary, description, benefits, etc.) for the discovered job listings:
+Run this script to fetch details (salary, description, benefits, etc.) for the discovered job listings:
 ```bash
 python details_retriever.py
 ```
 
-### Crucial Step: The Interactive Login Phase
-When each script launches for the first time:
+---
+
+## 7. Interactive Login & Captcha Phase
+
+Whether running via Web Dashboard or Command Line, when the scraper logs in for the first time:
 1. Selenium will open a browser window and navigate to the LinkedIn login page.
 2. It will auto-fill your credentials and attempt to log in.
 3. If LinkedIn prompts you for a captcha (security verification) or a verification code, complete it manually in the opened browser.
-4. Once you are successfully logged in and view the search/feed page, return to your terminal.
+4. Once you are successfully logged in, return to the terminal where the script/server is running.
 5. You will see the prompt:
    ```text
    Press ENTER after a successful login for "your-email@example.com":
    ```
-   Press **`ENTER`** in the terminal to allow the script to save cookies and start the background API calls.
+   Press **`ENTER`** in that terminal to allow the script to save cookies and continue. Subsequent runs will use the saved cookies without opening a browser window.
 
 ---
 
-## 6. Converting the Database to CSV
+## 8. Converting the Database to CSV
 
-Once the scraper has run for a while and populated the SQLite database `linkedin_jobs.db`, you can export the collected data to formatted CSV files:
+Once the scraper has populated the database, you can export the collected data to formatted CSV files:
 
-Run the following command:
 ```bash
 python to_csv.py --folder csv_output --database linkedin_jobs.db
 ```
 
-This will create a directory called `csv_output/` containing a fully compiled and merged dataset: `job_postings.csv`.
+This will create `csv_output/job_postings.csv` containing a fully compiled and merged dataset.

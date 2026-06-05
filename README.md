@@ -10,28 +10,27 @@
 
 ### Required
 - **```logins.csv```**
-  - Populate with multiple LinkedIn logins
-  - Specify the purpose of the login (search or detail retreiever)
-  - I recommend 1-3 logins for search and the remaining for more expensive attribute retrieval
-## Optional
-- **```details_retriever.py```**
-  - **MAX_UPDATES**: - Number of job postings to look up before sleeping. Increase with more accounts/proxies (default = 25)
-  - **SLEEP_TIME**: - Seconds to sleep between every iteration (default = 60)
+  - Populate with one or more LinkedIn logins.
+  - A single account can perform both search and detail retrieval (shared via a session pool). No "method" column is needed.
 
-## Running
+## Running the Web Dashboard (Recommended)
 
-This program consists of 2 main scripts, running in parallel.
+Start the local server to run the scraper via an interactive UI dashboard:
+```bash
+python server.py
+```
+Then open `index.html` in your browser. From here you can:
+* Save and manage scrape configuration profiles (keywords, exclusions, salary ranges, weights).
+* Start, stop, and monitor scrape runs in real-time.
+* View details, relevance scores, and matched keywords for all scraped jobs.
 
-```python search_retriever.py``` - discovers new job postings and insert the most recent IDs and minimal attributes into the database
+## Running via Command Line (Alternative)
 
-```python details_retriever.py``` - populates tables with complete job attributes
+This program consists of 2 main scripts, which read the active config from the database:
 
+```python search_retriever.py``` - discovers new job postings and inserts the most recent IDs and minimal attributes into the database.
 
-It's important to note that while ```search_retriever.py``` typically runs smoothly, even through your personal IP and a singular account, ```details_retriever.py``` can be a bit finicky. Each search generates approximately 25-50 results, all of which must be individually queried to obtain their attributes. To enhance its performance, I recommend the following strategies:
-
-- Utilize multiple proxies and accounts when running details_retriever.py.
-- Experiment with different time delays to find the optimal settings.
-- Run details_retriever.py during periods of lower online activity, such as late-night hours and weekends, to catch up with the progress of search_retriever.py. This will ensure that both processes remain synchronized and up to date.
+```python details_retriever.py``` - populates tables with complete job attributes.
 
 ## Supabase + Vercel Deployment
 
@@ -39,14 +38,7 @@ It's important to note that while ```search_retriever.py``` typically runs smoot
 2. Copy `.env.example` to `.env` and set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 3. Update `supabase-config.js` with your Supabase project URL and public anon key. Do not put the service role key in this file.
 4. Deploy the repo to Vercel as a static project. `index.html` and `supabase-config.js` are enough for the frontend.
-5. Run the scraper scripts from your machine or a server with `.env` present:
-
-```bash
-python search_retriever.py
-python details_retriever.py
-```
-
-When `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, the scraper writes to Supabase instead of SQLite. New jobs get `discovered_at`; detailed jobs get `posted_at` from LinkedIn listing time when LinkedIn provides it, and `scraped_at` when the detail scraper stores the full posting.
+5. The local backend server or CLI scripts will automatically write to Supabase when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present in `.env`. New jobs get `discovered_at`; detailed jobs get `posted_at` from LinkedIn listing time when LinkedIn provides it, and `scraped_at` when the detail scraper stores the full posting. Logins and active configuration are synced dynamically across SQLite and Supabase.
 
 ## Converting Database to CSV
 
