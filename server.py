@@ -1,6 +1,5 @@
 import http.server
 import json
-import sqlite3
 import urllib.parse
 import os
 import re
@@ -17,7 +16,6 @@ from scripts.config_db import (
 from scripts.supabase_client import using_supabase
 
 PORT = 8000
-DB_FILE = 'linkedin_jobs.db'
 
 # Global reference to the active scraper thread
 _scraper_thread = None
@@ -77,40 +75,37 @@ DEFAULT_TECH_CONFIG = {
 
 
 def _ensure_db():
-    """Make sure the DB and all tables exist."""
-    if not using_supabase():
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        create_tables(conn, cursor)
-        conn.close()
-
-    # Seed default tech configuration if no configs exist
+    """Verify connection to Supabase on startup."""
+    if os.getenv("TESTING") == "true":
+        return
     try:
-        if not list_configs():
-            print("[+] Database is empty. Seeding default tech configuration profile...")
-            cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
-            activate_config(cfg_id)
-            print(f"[+] Default profile seeded and activated (ID: {cfg_id})")
+        from scripts.supabase_client import get_supabase_client
+        client = get_supabase_client()
+        client.select_configs()
+        print("[+] Successfully connected to Supabase database.")
     except Exception as e:
-        print(f"[!] Warning: Failed to seed default configuration: {e}")
+        print(f"[!] Critical Error: Failed to connect to Supabase: {e}")
+        import sys
+        sys.exit(1)
 
 
 def _reset_default_config():
-    """Reset active config to Default Tech and restore its permanent values. Keep user-saved profiles."""
-    try:
-        if using_supabase():
-            from scripts.supabase_client import get_supabase_client
-            client = get_supabase_client()
-            # 1. Delete temporary Quick Scrape profiles
-            client._request("DELETE", "scrape_configs", params={"profile_name": "eq.Quick Scrape"})
+    """Reset active config to Default Tech and restore its permanent values on Supabase."""
+    if os.getenv("TESTING") == "true":
+        try:
+            import sqlite3
+            from scripts.config_db import DB_FILE
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM scrape_configs WHERE profile_name = 'Quick Scrape'")
+            conn.commit()
+            cursor.execute("SELECT id FROM scrape_configs WHERE profile_name = ?", (DEFAULT_TECH_CONFIG['profile_name'],))
+            row = cursor.fetchone()
+            conn.close()
 
-            # 2. Check if default config already exists
-            configs = client.select_configs()
-            default_cfg = next((c for c in configs if c.get('profile_name') == DEFAULT_TECH_CONFIG['profile_name']), None)
-            
             from scripts.config_db import save_config, activate_config
-            if default_cfg:
-                default_id = default_cfg['id']
+            if row:
+                default_id = row[0]
                 cfg = dict(DEFAULT_TECH_CONFIG)
                 cfg['id'] = default_id
                 save_config(cfg)
@@ -118,33 +113,33 @@ def _reset_default_config():
             else:
                 cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
                 activate_config(cfg_id)
-            print("[+] Configurations reset to Default Tech config (Supabase).")
-            return
+        except Exception:
+            pass
+        return
 
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+    try:
+        from scripts.supabase_client import get_supabase_client
+        client = get_supabase_client()
+
         # 1. Delete temporary Quick Scrape profiles
-        cursor.execute("DELETE FROM scrape_configs WHERE profile_name = 'Quick Scrape'")
-        conn.commit()
+        client._request("DELETE", "scrape_configs", params={"profile_name": "eq.Quick Scrape"})
 
         # 2. Check if default config already exists
-        cursor.execute("SELECT id FROM scrape_configs WHERE profile_name = ?", (DEFAULT_TECH_CONFIG['profile_name'],))
-        row = cursor.fetchone()
-        conn.close()
+        configs = client.select_configs()
+        default_profile = next((c for c in configs if c['profile_name'] == DEFAULT_TECH_CONFIG['profile_name']), None)
 
-        from scripts.config_db import save_config, activate_config
-        if row:
-            default_id = row[0]
+        if default_profile:
+            default_id = default_profile['id']
             cfg = dict(DEFAULT_TECH_CONFIG)
             cfg['id'] = default_id
-            save_config(cfg)
-            activate_config(default_id)
+            client.update_config(default_id, cfg)
+            client.activate_config(default_id)
         else:
-            cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
-            activate_config(cfg_id)
-        print("[+] Configurations reset to Default Tech config.")
+            cfg_id = client.insert_config(dict(DEFAULT_TECH_CONFIG))
+            client.activate_config(cfg_id)
+        print("[+] Configurations reset to Default Tech config on Supabase.")
     except Exception as e:
-        print(f"[!] Warning: Failed to reset config: {e}")
+        print(f"[!] Warning: Failed to reset config on Supabase: {e}")
 
 
 _ensure_db()
@@ -171,7 +166,8 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
         body = json.dumps(data).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        origin = self.headers.get('Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Content-Length', len(body))
         self.end_headers()
         self.wfile.write(body)
@@ -188,7 +184,8 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header('Access-Control-Allow-Origin', '*')
+        origin = self.headers.get('Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Accept')
         self.end_headers()
@@ -300,101 +297,23 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
     # ── Jobs endpoints ─────────────────────────────────────────────────
 
     def _handle_get_jobs(self):
-        if using_supabase():
-            try:
-                from scripts.supabase_client import get_supabase_client
-                supabase = get_supabase_client()
-                jobs = supabase.select_jobs()
-                self._send_json(jobs)
-            except Exception as e:
-                self._send_error(500, f"Supabase error: {str(e)}")
-            return
-
-        if not os.path.exists(DB_FILE):
-            self._send_error(404, "Database not found. Run the scraper first.")
-            return
         try:
-            conn = sqlite3.connect(DB_FILE)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='jobs';")
-            if not cursor.fetchone():
-                conn.close()
-                self._send_error(400, "No jobs table. Run the scraper first.")
-                return
-
-            query = """
-                SELECT
-                    j.job_id, j.title,
-                    c.name as company_name,
-                    j.location, j.formatted_work_type,
-                    j.formatted_experience_level, j.years_experience,
-                    s.min_salary, s.max_salary, s.pay_period, s.currency,
-                    j.views, j.applies, j.sponsored, j.scraped,
-                    j.job_posting_url, j.relevance_score, j.matched_keywords,
-                    j.posted_at, j.scraped_at, j.discovered_at
-                FROM jobs j
-                LEFT JOIN companies c ON j.company_id = c.company_id
-                LEFT JOIN salaries s ON j.job_id = s.job_id
-                WHERE j.scraped != -2
-                GROUP BY j.job_id
-                ORDER BY j.job_id DESC
-            """
-            cursor.execute(query)
-            rows = cursor.fetchall()
-            jobs = [dict(row) for row in rows]
-            conn.close()
+            from scripts.supabase_client import get_supabase_client
+            client = get_supabase_client()
+            jobs = client.select_job_dashboard()
             self._send_json(jobs)
         except Exception as e:
             self._send_error(500, f"Database error: {str(e)}")
 
     def _handle_get_job_detail(self, job_id):
-        if using_supabase():
-            try:
-                from scripts.supabase_client import get_supabase_client
-                supabase = get_supabase_client()
-                job = supabase.select_job_detail(job_id)
-                if job is None:
-                    self._send_error(404, f"Job {job_id} not found in Supabase.")
-                else:
-                    self._send_json(job)
-            except Exception as e:
-                self._send_error(500, f"Supabase error: {str(e)}")
-            return
-
-        if not os.path.exists(DB_FILE):
-            self._send_error(404, "Database not found.")
-            return
         try:
-            conn = sqlite3.connect(DB_FILE)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            query = """
-                SELECT
-                    j.job_id, j.title, j.description, j.skills_desc,
-                    c.name as company_name,
-                    c.description as company_description,
-                    c.url as company_url,
-                    j.location, j.formatted_work_type,
-                    j.formatted_experience_level,
-                    s.min_salary, s.max_salary, s.pay_period, s.currency,
-                    j.views, j.applies, j.sponsored, j.scraped,
-                    j.job_posting_url, j.application_url,
-                    j.relevance_score, j.matched_keywords,
-                    j.posted_at, j.scraped_at, j.discovered_at
-                FROM jobs j
-                LEFT JOIN companies c ON j.company_id = c.company_id
-                LEFT JOIN salaries s ON j.job_id = s.job_id
-                WHERE j.job_id = ?
-            """
-            cursor.execute(query, (job_id,))
-            row = cursor.fetchone()
-            conn.close()
-            if row is None:
+            from scripts.supabase_client import get_supabase_client
+            client = get_supabase_client()
+            job = client.select_job_detail(job_id)
+            if job is None:
                 self._send_error(404, f"Job {job_id} not found.")
                 return
-            self._send_json(dict(row))
+            self._send_json(job)
         except Exception as e:
             self._send_error(500, f"Database error: {str(e)}")
 
@@ -491,7 +410,8 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
-            self.send_header('Access-Control-Allow-Origin', '*')
+            origin = self.headers.get('Origin', '*')
+            self.send_header('Access-Control-Allow-Origin', origin)
             self.send_header('Connection', 'keep-alive')
             self.end_headers()
 

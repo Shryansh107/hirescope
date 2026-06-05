@@ -57,19 +57,14 @@ def get_cli_database_override():
     return None
 
 def using_supabase():
-    override = get_cli_database_override()
-    if override == 'supabase':
-        return True
-    elif override == 'sqlite':
+    if os.getenv("TESTING") == "true":
         return False
-
-    env_db = os.getenv("DB_BACKEND", "").lower()
-    if env_db == "supabase":
-        return True
-    elif env_db == "sqlite":
-        return False
-
-    return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+    if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in your .env file. "
+            "SQLite has been completely removed from this project."
+        )
+    return True
 
 
 def _jwt_payload(token):
@@ -166,6 +161,21 @@ class SupabaseClient:
             params["limit"] = str(limit)
         rows = self._request("GET", "jobs", params=params) or []
         return [row["job_id"] for row in rows]
+
+    def select_job_dashboard(self):
+        rows = self._request("GET", "job_dashboard", params={
+            "select": "*",
+            "order": "job_id.desc",
+        }) or []
+        return rows
+
+    def select_job_detail(self, job_id):
+        rows = self._request("GET", "job_details", params={
+            "select": "*",
+            "job_id": f"eq.{job_id}",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
 
     def upsert(self, table, rows, on_conflict):
         if not rows:
