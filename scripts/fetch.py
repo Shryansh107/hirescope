@@ -1,14 +1,60 @@
 import random
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 import requests
 import pandas as pd
+import urllib.parse
 
 from scripts.helpers import strip_val, get_value_by_path
 
 
-BROWSER = 'edge'
+# Search configurations for SDE roles (Python, Go, JS, TS, Frontend, Backend) at entry level / internship / associate (0-3 years)
+BROWSER = 'chrome'
+KEYWORDS = '(python OR go OR javascript OR typescript OR frontend OR backend) AND (sde OR developer OR engineer OR intern OR internship)'
+EXPERIENCE_LEVELS = ['1', '2', '3']  # 1 = Internship, 2 = Entry Level, 3 = Associate
+
+def is_valid_sde_job(title):
+    if not title:
+        return False
+    title_lower = title.lower()
+    
+    # Exclude senior / lead / architecture roles
+    exclude_senior_keywords = [
+        'senior', 'sr.', 'sr ', 'lead', 'principal', 'manager', 'director', 
+        'vp', 'architect', 'staff', 'head', 'president', 'chief', 'cto', 
+        'expert', 'lead', 'head'
+    ]
+    for kw in exclude_senior_keywords:
+        if kw in title_lower:
+            return False
+            
+    # Exclude business / non-engineering / management roles
+    exclude_business_keywords = [
+        'business analyst', 'product manager', 'project manager', 'program manager',
+        'scrum', 'sales', 'marketing', 'recruiter', 'hr ', 'human resources',
+        'account executive', 'account manager', 'operations', 'finance',
+        'legal', 'counsel', 'designer', 'ux', 'ui/ux', 'content', 'writer',
+        'customer success', 'support agent', 'agile coach', 'data analyst', 
+        'business development', 'qa analyst', 'scrum master'
+    ]
+    for kw in exclude_business_keywords:
+        if kw in title_lower:
+            return False
+            
+    # Include only software engineering / developer roles
+    engineering_keywords = [
+        'sde', 'developer', 'engineer', 'intern', 'internship', 'software', 
+        'frontend', 'backend', 'fullstack', 'full-stack', 'programmer', 
+        'coder', 'development'
+    ]
+    has_eng = any(kw in title_lower for kw in engineering_keywords)
+    if not has_eng:
+        return False
+        
+    return True
 
 def create_session(email, password):
     if BROWSER == 'chrome':
@@ -17,10 +63,25 @@ def create_session(email, password):
         driver = webdriver.Edge()
 
     driver.get('https://www.linkedin.com/checkpoint/rm/sign-in-another-account')
-    time.sleep(1)
-    driver.find_element(By.ID, 'username').send_keys(email)
+    
+    # Wait for the login form to load
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.ID, 'username'))
+    ).send_keys(email)
+    
     driver.find_element(By.ID, 'password').send_keys(password)
-    driver.find_element(By.XPATH, '//*[@id="organic-div"]/form/div[3]/button').click()
+    
+    # Attempt to click the submit/sign-in button using various selectors
+    try:
+        WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[type="submit"]'))
+        ).click()
+    except Exception:
+        try:
+            driver.find_element(By.XPATH, '//*[@id="organic-div"]/form/div[3]/button').click()
+        except Exception:
+            driver.find_element(By.CSS_SELECTOR, '.btn__primary--large').click()
+
     time.sleep(1)
     input('Press ENTER after a successful login for "{}": '.format(email))
     driver.get('https://www.linkedin.com/jobs/search/?')
@@ -41,14 +102,18 @@ def get_logins(method):
 
 class JobSearchRetriever:
     def __init__(self):
-        self.job_search_link = 'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=100&q=jobSearch&query=(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,selectedFilters:(sortBy:List(DD)),spellCorrectionEnabled:true)&start=0'
+        encoded_keywords = urllib.parse.quote(KEYWORDS)
+        levels_str = ','.join(EXPERIENCE_LEVELS)
+        query_str = f'(origin:JOB_SEARCH_PAGE_Sds:{encoded_keywords},selectedFilters:(experienceLevel:List({levels_str}),sortBy:List(DD)),spellCorrectionEnabled:true)'
+        
+        self.job_search_link = f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=100&q=jobSearch&query={query_str}&start=0'
         emails, passwords = get_logins('search')
         self.sessions = [create_session(email, password) for email, password in zip(emails, passwords)]
         self.session_index = 0
         self.headers = [{
             'Authority': 'www.linkedin.com',
             'Method': 'GET',
-            'Path': 'voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=25&q=jobSearch&query=(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,selectedFilters:(sortBy:List(DD)),spellCorrectionEnabled:true)&start=0',
+            'Path': f'voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=25&q=jobSearch&query={query_str}&start=0',
             'Scheme': 'https',
             'Accept': 'application/vnd.linkedin.normalized+json+2.1',
             'Accept-Encoding': 'gzip, deflate, br',
@@ -72,9 +137,12 @@ class JobSearchRetriever:
 
         for r in results['included']:
             if r['$type'] == 'com.linkedin.voyager.dash.jobs.JobPostingCard' and 'referenceId' in r:
+                title = r.get('jobPostingTitle')
+                if not is_valid_sde_job(title):
+                    continue
                 job_id = int(strip_val(r['jobPostingUrn'], 1))
                 job_ids[job_id] = {'sponsored': False}
-                job_ids[job_id]['title'] = r.get('jobPostingTitle')
+                job_ids[job_id]['title'] = title
                 for x in r['footerItems']:
                     if x.get('type') == 'PROMOTED':
                         job_ids[job_id]['sponsored'] = True

@@ -1,11 +1,33 @@
 import time
+import json
+import os
+
+
+def load_excluded_companies():
+    path = 'excluded_companies.json'
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return [c.strip().lower() for c in json.load(f) if c]
+        except Exception as e:
+            print(f"Error loading excluded_companies.json: {e}")
+    return []
 
 
 def insert_data(data, conn, cursor):
+    excluded = load_excluded_companies()
     for job_id, job_info in data.items():
         if 'error' in job_info:
             cursor.execute(f"UPDATE jobs SET scraped = -1 WHERE job_id = ?", (job_id,))
             continue
+        
+        # Check if the company is in the excluded list
+        company_name = job_info.get('companies', {}).get('name')
+        if company_name and company_name.strip().lower() in excluded:
+            print(f"[-] Excluding job {job_id} from company: {company_name}")
+            cursor.execute("UPDATE jobs SET scraped = -2 WHERE job_id = ?", (job_id,))
+            continue
+
         company_id = job_info['jobs'].get('company_id')
         for table_name in job_info:
             if len(job_info[table_name]) > 0:

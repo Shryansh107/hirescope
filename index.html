@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkedIn Job Scraper Dashboard</title>
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --panel-bg: rgba(17, 24, 39, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.15);
+            --accent: #8b5cf6;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+                radial-gradient(at 50% 0%, rgba(139, 92, 246, 0.08) 0px, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo-icon {
+            font-size: 2.2rem;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 8px var(--primary-glow));
+        }
+
+        .logo-text h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(to right, #ffffff, #d1d5db);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-text p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .stats-badge {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            padding: 0.5rem 1rem;
+            border-radius: 9999px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            color: #c7d2fe;
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        /* Summary Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: var(--primary);
+        }
+
+        .stat-card:nth-child(2) .stat-icon { color: var(--accent); }
+        .stat-card:nth-child(3) .stat-icon { color: var(--success); }
+        .stat-card:nth-child(4) .stat-icon { color: var(--warning); }
+
+        .stat-info h3 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-info .stat-number {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        /* Filter Panel */
+        .filter-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-wrapper i {
+            position: absolute;
+            left: 1rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .input-control {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem 0.75rem 2.5rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .input-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-glow);
+        }
+
+        select.input-control {
+            appearance: none;
+            padding-right: 2rem;
+            cursor: pointer;
+        }
+
+        .select-wrapper::after {
+            content: "\f078";
+            font-family: "Font Awesome 5 Free";
+            font-weight: 900;
+            position: absolute;
+            right: 1rem;
+            pointer-events: none;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .filter-tag {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .filter-tag button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .filter-tag button:hover {
+            color: var(--danger);
+        }
+
+        .btn-clear {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-left: 0.5rem;
+        }
+
+        .btn-clear:hover {
+            text-decoration: underline;
+        }
+
+        /* Job Table Section */
+        .table-section {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .table-header-bar {
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-header-bar h2 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            flex: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.95rem;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        th.sortable:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        th i {
+            margin-left: 0.35rem;
+            font-size: 0.8rem;
+        }
+
+        td {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+        }
+
+        tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tr:hover td {
+            background-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .job-title-col {
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        .company-col {
+            color: #cbd5e1;
+        }
+
+        .salary-badge {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-badge.scraped {
+            background: rgba(16, 185, 129, 0.1);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .worktype-badge {
+            background: rgba(99, 102, 241, 0.08);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            color: #a5b4fc;
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-action:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+            transform: scale(1.05);
+        }
+
+        .action-cell {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .table-footer {
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-pagination {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.2s ease;
+        }
+
+        .btn-pagination:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-pagination:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Detail Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-container {
+            width: 90%;
+            max-width: 800px;
+            background: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+            transform: scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-overlay.active .modal-container {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .modal-header-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .modal-header-info h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .modal-company {
+            font-size: 1.05rem;
+            color: #a5b4fc;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-close-modal {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.3rem;
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .btn-close-modal:hover {
+            color: var(--danger);
+        }
+
+        .modal-body {
+            padding: 2rem;
+            overflow-y: auto;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .modal-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            padding: 1.25rem;
+            border-radius: 12px;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .meta-item i {
+            font-size: 1.15rem;
+            color: var(--primary);
+            width: 24px;
+        }
+
+        .meta-value-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .meta-value {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .modal-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-left: 4px solid var(--primary);
+            padding-left: 0.75rem;
+            margin-bottom: 0.75rem;
+            color: #ffffff;
+        }
+
+        .job-description-content {
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #d1d5db;
+            white-space: pre-line;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            padding: 1.25rem;
+            border-radius: 10px;
+        }
+
+        .skills-tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .skill-tag {
+            background: rgba(139, 92, 246, 0.1);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            color: #c084fc;
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .modal-footer {
+            padding: 1.25rem 2rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            background: rgba(255, 255, 255, 0.01);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border: none;
+            color: #ffffff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1.5rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Loading Spinner */
+        .loading-overlay {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(99, 102, 241, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Responsive modifications */
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+            .filter-row { grid-template-columns: 1fr; }
+            .modal-meta-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo-area">
+                <i class="fa-solid fa-database logo-icon"></i>
+                <div class="logo-text">
+                    <h1>LinkedIn Scraper Board</h1>
+                    <p>Scraped Jobs Analyzer & Viewer</p>
+                </div>
+            </div>
+            <div class="stats-badge" id="live-indicator">
+                <span class="spinner" style="width: 14px; height: 14px; border-width: 2px;"></span>
+                <span>Connecting to DB...</span>
+            </div>
+        </header>
+
+        <!-- Metrics Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-briefcase"></i></div>
+                <div class="stat-info">
+                    <h3>Total Jobs Discovered</h3>
+                    <div class="stat-number" id="stat-total">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <div class="stat-info">
+                    <h3>Fully Processed</h3>
+                    <div class="stat-number" id="stat-scraped">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-globe"></i></div>
+                <div class="stat-info">
+                    <h3>Remote Roles</h3>
+                    <div class="stat-number" id="stat-remote">0</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fa-solid fa-bolt"></i></div>
+                <div class="stat-info">
+                    <h3>Sponsored / Promoted</h3>
+                    <div class="stat-number" id="stat-sponsored">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Panel -->
+        <div class="filter-panel">
+            <div class="filter-row">
+                <div class="input-group">
+                    <label for="search-input">Search Title, Company, Location</label>
+                    <div class="input-wrapper">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="search-input" class="input-control" placeholder="Type to filter...">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="filter-worktype">Workplace Type</label>
+                    <div class="input-wrapper select-wrapper">
+                        <i class="fa-solid fa-laptop-house"></i>
+                        <select id="filter-worktype" class="input-control">
+                            <option value="">All Workplace Types</option>
+                            <option value="Full-time">Full-time</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Contract">Contract</option>
+                            <option value="Internship">Internship</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="filter-experience">Experience Level</label>
+                    <div class="input-wrapper select-wrapper">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <select id="filter-experience" class="input-control">
+                            <option value="">All Experience Levels</option>
+                            <option value="Internship">Internship</option>
+                            <option value="Entry level">Entry level</option>
+                            <option value="Associate">Associate</option>
+                            <option value="Mid-Senior level">Mid-Senior level</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="filter-scraped">Scrape Status</label>
+                    <div class="input-wrapper select-wrapper">
+                        <i class="fa-solid fa-list-check"></i>
+                        <select id="filter-scraped" class="input-control">
+                            <option value="">All Statuses</option>
+                            <option value="1">Fully Scraped</option>
+                            <option value="0">Discovered (Pending detail scraper)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="active-filters" id="active-filters-container" style="display: none;">
+                <span style="font-size: 0.85rem; color: var(--text-muted);">Active filters:</span>
+                <div id="filter-tags-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;"></div>
+                <button class="btn-clear" id="btn-clear-filters">Clear All</button>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="table-section">
+            <div class="table-header-bar">
+                <h2 id="jobs-count-text">Jobs List (0)</h2>
+                <div style="font-size: 0.9rem; color: var(--text-muted);" id="showing-text">
+                    Showing 0 of 0
+                </div>
+            </div>
+            
+            <div class="table-wrapper">
+                <table id="jobs-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="handleSort('title')">Job Title <i class="fa-solid fa-sort"></i></th>
+                            <th class="sortable" onclick="handleSort('company_name')">Company <i class="fa-solid fa-sort"></i></th>
+                            <th class="sortable" onclick="handleSort('location')">Location <i class="fa-solid fa-sort"></i></th>
+                            <th class="sortable" onclick="handleSort('formatted_work_type')">Work Type <i class="fa-solid fa-sort"></i></th>
+                            <th class="sortable" onclick="handleSort('formatted_experience_level')">Experience <i class="fa-solid fa-sort"></i></th>
+                            <th>Salary</th>
+                            <th>Views / Applies</th>
+                            <th class="sortable" onclick="handleSort('scraped')">Status <i class="fa-solid fa-sort"></i></th>
+                            <th style="width: 100px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-table-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+                <div class="loading-overlay" id="table-loading">
+                    <div class="spinner"></div>
+                    <p>Loading database records...</p>
+                </div>
+                <div class="empty-state" id="table-empty" style="display: none;">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <h3>No Job Listings Found</h3>
+                    <p>Try adjusting your search keywords or filter settings.</p>
+                </div>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="table-footer">
+                <div id="pagination-text">
+                    Page 1 of 1
+                </div>
+                <div class="pagination-buttons">
+                    <button class="btn-pagination" id="btn-prev-page" disabled>
+                        <i class="fa-solid fa-angle-left"></i> Previous
+                    </button>
+                    <button class="btn-pagination" id="btn-next-page" disabled>
+                        Next <i class="fa-solid fa-angle-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div class="modal-overlay" id="details-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-header-info">
+                    <div class="modal-company" id="modal-company-name">Company</div>
+                    <h2 id="modal-job-title">Job Title</h2>
+                </div>
+                <button class="btn-close-modal" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="modal-body" id="modal-content-area">
+                <!-- Meta Grid -->
+                <div class="modal-meta-grid">
+                    <div class="meta-item">
+                        <i class="fa-solid fa-map-pin"></i>
+                        <div>
+                            <div class="meta-value-label">Location</div>
+                            <div class="meta-value" id="modal-location">N/A</div>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa-solid fa-briefcase"></i>
+                        <div>
+                            <div class="meta-value-label">Job Type</div>
+                            <div class="meta-value" id="modal-worktype">N/A</div>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa-solid fa-layer-group"></i>
+                        <div>
+                            <div class="meta-value-label">Experience</div>
+                            <div class="meta-value" id="modal-experience">N/A</div>
+                        </div>
+                    </div>
+                    <div class="meta-item">
+                        <i class="fa-solid fa-dollar-sign"></i>
+                        <div>
+                            <div class="meta-value-label">Salary Compensation</div>
+                            <div class="meta-value" id="modal-salary">N/A</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Description section -->
+                <div>
+                    <h3 class="modal-section-title">Job Description</h3>
+                    <div class="job-description-content" id="modal-description">
+                        No description retrieved for this job posting yet. Run `details_retriever.py` to scrape full details.
+                    </div>
+                </div>
+
+                <!-- Skills section -->
+                <div id="modal-skills-section" style="display: none;">
+                    <h3 class="modal-section-title">Required Skills</h3>
+                    <div class="skills-tag-container" id="modal-skills-container">
+                        <!-- Skill tags -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <a href="#" target="_blank" class="btn-secondary" id="modal-link-linkedin">
+                    <i class="fa-brands fa-linkedin"></i> View on LinkedIn
+                </a>
+                <a href="#" target="_blank" class="btn-primary" id="modal-link-apply" style="display: none;">
+                    Apply Externally <i class="fa-solid fa-square-arrow-up-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Block -->
+    <script>
+        // State variables
+        let allJobs = [];
+        let filteredJobs = [];
+        let sortedColumn = '';
+        let sortDirection = 'asc';
+        
+        let currentPage = 1;
+        const pageSize = 20;
+
+        // Elements
+        const liveIndicator = document.getElementById('live-indicator');
+        const statTotal = document.getElementById('stat-total');
+        const statScraped = document.getElementById('stat-scraped');
+        const statRemote = document.getElementById('stat-remote');
+        const statSponsored = document.getElementById('stat-sponsored');
+        
+        const searchInput = document.getElementById('search-input');
+        const filterWorktype = document.getElementById('filter-worktype');
+        const filterExperience = document.getElementById('filter-experience');
+        const filterScraped = document.getElementById('filter-scraped');
+        const activeFiltersContainer = document.getElementById('active-filters-container');
+        const filterTagsList = document.getElementById('filter-tags-list');
+        const btnClearFilters = document.getElementById('btn-clear-filters');
+        
+        const jobsTableBody = document.getElementById('jobs-table-body');
+        const tableLoading = document.getElementById('table-loading');
+        const tableEmpty = document.getElementById('table-empty');
+        const jobsCountText = document.getElementById('jobs-count-text');
+        const showingText = document.getElementById('showing-text');
+        
+        const paginationText = document.getElementById('pagination-text');
+        const btnPrevPage = document.getElementById('btn-prev-page');
+        const btnNextPage = document.getElementById('btn-next-page');
+        
+        const detailsModal = document.getElementById('details-modal');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+
+        // Fetch jobs from backend API
+        async function fetchJobs() {
+            try {
+                const response = await fetch('/api/jobs');
+                if (!response.ok) {
+                    throw new Error('API request failed');
+                }
+                allJobs = await response.json();
+                
+                // Update live indicator
+                liveIndicator.className = 'stats-badge';
+                liveIndicator.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--success); font-size: 0.75rem;"></i> Connected';
+                
+                // Calculate metrics
+                calculateMetrics();
+                
+                // Filter and render
+                applyFilters();
+            } catch (error) {
+                console.error('Error fetching jobs:', error);
+                liveIndicator.className = 'stats-badge';
+                liveIndicator.innerHTML = '<i class="fa-solid fa-circle" style="color: var(--danger); font-size: 0.75rem;"></i> Connection Failed';
+                tableLoading.style.display = 'none';
+                tableEmpty.style.display = 'flex';
+                tableEmpty.querySelector('h3').textContent = 'Database Connection Failed';
+                tableEmpty.querySelector('p').textContent = 'Please make sure server.py is running and connected to linkedin_jobs.db.';
+            }
+        }
+
+        // Calculate and display metrics
+        function calculateMetrics() {
+            statTotal.textContent = allJobs.length.toLocaleString();
+            
+            const scrapedCount = allJobs.filter(j => j.scraped > 0).length;
+            statScraped.textContent = scrapedCount.toLocaleString();
+            
+            const remoteCount = allJobs.filter(j => 
+                (j.location && j.location.toLowerCase().includes('remote')) || 
+                j.location === 'Remote' || 
+                j.title.toLowerCase().includes('remote')
+            ).length;
+            statRemote.textContent = remoteCount.toLocaleString();
+            
+            const sponsoredCount = allJobs.filter(j => j.sponsored === 1 || j.sponsored === true).length;
+            statSponsored.textContent = sponsoredCount.toLocaleString();
+        }
+
+        // Apply filters
+        function applyFilters() {
+            const query = searchInput.value.trim().toLowerCase();
+            const worktype = filterWorktype.value;
+            const experience = filterExperience.value;
+            const scraped = filterScraped.value;
+
+            // Generate active filter tags
+            let tags = [];
+            if (query) tags.push({ id: 'search', label: `Search: "${query}"` });
+            if (worktype) tags.push({ id: 'worktype', label: `Work: ${worktype}` });
+            if (experience) tags.push({ id: 'experience', label: `Level: ${experience}` });
+            if (scraped !== "") tags.push({ id: 'scraped', label: scraped === '1' ? 'Fully Scraped' : 'Pending Detail' });
+            
+            if (tags.length > 0) {
+                activeFiltersContainer.style.display = 'flex';
+                filterTagsList.innerHTML = tags.map(t => `
+                    <div class="filter-tag">
+                        <span>${t.label}</span>
+                        <button onclick="removeFilter('${t.id}')"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                `).join('');
+            } else {
+                activeFiltersContainer.style.display = 'none';
+            }
+
+            filteredJobs = allJobs.filter(job => {
+                // Search term
+                if (query) {
+                    const title = (job.title || '').toLowerCase();
+                    const company = (job.company_name || '').toLowerCase();
+                    const loc = (job.location || '').toLowerCase();
+                    if (!title.includes(query) && !company.includes(query) && !loc.includes(query)) {
+                        return false;
+                    }
+                }
+                
+                // Worktype
+                if (worktype && job.formatted_work_type !== worktype) {
+                    return false;
+                }
+                
+                // Experience
+                if (experience && job.formatted_experience_level !== experience) {
+                    return false;
+                }
+                
+                // Scraped status
+                if (scraped !== "") {
+                    const matchesScraped = scraped === '1' ? (job.scraped > 0) : (job.scraped === 0);
+                    if (!matchesScraped) return false;
+                }
+                
+                return true;
+            });
+
+            // Sort if column is active
+            if (sortedColumn) {
+                sortJobs(sortedColumn, sortDirection, false);
+            }
+
+            currentPage = 1;
+            renderTable();
+        }
+
+        // Remove single filter
+        window.removeFilter = function(id) {
+            if (id === 'search') searchInput.value = '';
+            if (id === 'worktype') filterWorktype.value = '';
+            if (id === 'experience') filterExperience.value = '';
+            if (id === 'scraped') filterScraped.value = '';
+            applyFilters();
+        }
+
+        // Clear all filters
+        btnClearFilters.addEventListener('click', () => {
+            searchInput.value = '';
+            filterWorktype.value = '';
+            filterExperience.value = '';
+            filterScraped.value = '';
+            applyFilters();
+        });
+
+        // Trigger filters on input
+        searchInput.addEventListener('input', applyFilters);
+        filterWorktype.addEventListener('change', applyFilters);
+        filterExperience.addEventListener('change', applyFilters);
+        filterScraped.addEventListener('change', applyFilters);
+
+        // Sorting
+        window.handleSort = function(column) {
+            if (sortedColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortedColumn = column;
+                sortDirection = 'asc';
+            }
+            
+            // Update table headers sorting icon
+            const headers = document.querySelectorAll('th.sortable');
+            headers.forEach(h => {
+                const icon = h.querySelector('i');
+                if (h.getAttribute('onclick').includes(column)) {
+                    icon.className = sortDirection === 'asc' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+                } else {
+                    icon.className = 'fa-solid fa-sort';
+                }
+            });
+
+            sortJobs(column, sortDirection, true);
+        }
+
+        function sortJobs(column, direction, shouldRender = true) {
+            filteredJobs.sort((a, b) => {
+                let valA = a[column];
+                let valB = b[column];
+                
+                // Handle nulls
+                if (valA === undefined || valA === null) valA = '';
+                if (valB === undefined || valB === null) valB = '';
+                
+                // Convert strings to lowercase for proper sorting
+                if (typeof valA === 'string') valA = valA.toLowerCase();
+                if (typeof valB === 'string') valB = valB.toLowerCase();
+                
+                if (valA < valB) return direction === 'asc' ? -1 : 1;
+                if (valA > valB) return direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+            
+            if (shouldRender) {
+                renderTable();
+            }
+        }
+
+        // Render job table records
+        function renderTable() {
+            tableLoading.style.display = 'none';
+            jobsCountText.textContent = `Jobs List (${filteredJobs.length.toLocaleString()})`;
+            
+            if (filteredJobs.length === 0) {
+                jobsTableBody.innerHTML = '';
+                tableEmpty.style.display = 'flex';
+                showingText.textContent = 'Showing 0 of 0';
+                paginationText.textContent = 'Page 1 of 1';
+                btnPrevPage.disabled = true;
+                btnNextPage.disabled = true;
+                return;
+            }
+
+            tableEmpty.style.display = 'none';
+            
+            // Paginate
+            const totalPages = Math.ceil(filteredJobs.length / pageSize);
+            if (currentPage > totalPages) currentPage = totalPages;
+            
+            const startIdx = (currentPage - 1) * pageSize;
+            const endIdx = Math.min(startIdx + pageSize, filteredJobs.length);
+            const paginatedJobs = filteredJobs.slice(startIdx, endIdx);
+            
+            showingText.textContent = `Showing ${startIdx + 1}-${endIdx} of ${filteredJobs.length.toLocaleString()}`;
+            paginationText.textContent = `Page ${currentPage} of ${totalPages}`;
+            
+            btnPrevPage.disabled = currentPage === 1;
+            btnNextPage.disabled = currentPage === totalPages;
+
+            jobsTableBody.innerHTML = paginatedJobs.map(job => {
+                // Formatted Salary
+                let salaryText = 'Not listed';
+                if (job.min_salary || job.max_salary) {
+                    const min = job.min_salary ? Math.round(job.min_salary).toLocaleString() : '';
+                    const max = job.max_salary ? Math.round(job.max_salary).toLocaleString() : '';
+                    const payPeriod = job.pay_period ? job.pay_period.toLowerCase() : '';
+                    const cur = job.currency || 'USD';
+                    if (min && max) {
+                        salaryText = `${cur} ${min} - ${max} / ${payPeriod}`;
+                    } else {
+                        salaryText = `${cur} ${min || max} / ${payPeriod}`;
+                    }
+                }
+                
+                // Status badge
+                const statusBadge = job.scraped > 0 
+                    ? `<span class="status-badge scraped"><i class="fa-solid fa-circle-check"></i> Scraped</span>`
+                    : `<span class="status-badge pending"><i class="fa-solid fa-clock"></i> Pending</span>`;
+                    
+                // Worktype badge
+                const workTypeBadge = job.formatted_work_type 
+                    ? `<span class="worktype-badge">${job.formatted_work_type}</span>`
+                    : '';
+                    
+                // Experience badge
+                const expLevel = job.formatted_experience_level || 'N/A';
+                
+                // Views / Applies
+                const viewsApplies = `
+                    <div style="font-size: 0.85rem;">
+                        <i class="fa-regular fa-eye" style="margin-right: 2px;"></i> ${job.views || 0} <br>
+                        <i class="fa-regular fa-paper-plane" style="margin-right: 2px;"></i> ${job.applies || 0}
+                    </div>
+                `;
+
+                return `
+                    <tr>
+                        <td class="job-title-col">${escapeHtml(job.title || '')}</td>
+                        <td class="company-col">${escapeHtml(job.company_name || 'Unknown')}</td>
+                        <td><i class="fa-solid fa-location-dot" style="font-size: 0.8rem; margin-right: 4px; color: var(--text-muted)"></i> ${escapeHtml(job.location || '')}</td>
+                        <td>${workTypeBadge}</td>
+                        <td>${expLevel}</td>
+                        <td><span class="${job.min_salary || job.max_salary ? 'salary-badge' : ''}">${salaryText}</span></td>
+                        <td>${viewsApplies}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <div class="action-cell">
+                                <button class="btn-action" title="View details" onclick="openDetails(${job.job_id})">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                </button>
+                                <a href="${job.job_posting_url}" target="_blank" class="btn-action" title="Open on LinkedIn">
+                                    <i class="fa-brands fa-linkedin-in"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Pagination actions
+        btnPrevPage.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+                document.querySelector('.table-section').scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+
+        btnNextPage.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredJobs.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTable();
+                document.querySelector('.table-section').scrollIntoView({ behavior: 'smooth' });
+            }
+        });
+
+        // Open detail modal and load data lazily
+        window.openDetails = async function(jobId) {
+            // Reset modal data
+            document.getElementById('modal-job-title').textContent = 'Loading details...';
+            document.getElementById('modal-company-name').textContent = '';
+            document.getElementById('modal-location').textContent = 'Loading...';
+            document.getElementById('modal-worktype').textContent = 'Loading...';
+            document.getElementById('modal-experience').textContent = 'Loading...';
+            document.getElementById('modal-salary').textContent = 'Loading...';
+            document.getElementById('modal-description').innerHTML = '<div class="spinner"></div>';
+            document.getElementById('modal-skills-section').style.display = 'none';
+            document.getElementById('modal-link-apply').style.display = 'none';
+            
+            // Show modal overlay
+            detailsModal.classList.add('active');
+            
+            try {
+                const response = await fetch(`/api/job/${jobId}`);
+                if (!response.ok) throw new Error('Failed to load details');
+                
+                const data = await response.json();
+                
+                // Populate details
+                document.getElementById('modal-job-title').textContent = data.title || 'No Title';
+                document.getElementById('modal-company-name').textContent = data.company_name || 'Unknown Company';
+                document.getElementById('modal-location').textContent = data.location || 'N/A';
+                document.getElementById('modal-worktype').textContent = data.formatted_work_type || 'N/A';
+                document.getElementById('modal-experience').textContent = data.formatted_experience_level || 'N/A';
+                
+                // Salary
+                let salaryText = 'Not listed';
+                if (data.min_salary || data.max_salary) {
+                    const min = data.min_salary ? Math.round(data.min_salary).toLocaleString() : '';
+                    const max = data.max_salary ? Math.round(data.max_salary).toLocaleString() : '';
+                    const payPeriod = data.pay_period ? data.pay_period.toLowerCase() : '';
+                    const cur = data.currency || 'USD';
+                    if (min && max) {
+                        salaryText = `${cur} ${min} - ${max} / ${payPeriod}`;
+                    } else {
+                        salaryText = `${cur} ${min || max} / ${payPeriod}`;
+                    }
+                }
+                document.getElementById('modal-salary').textContent = salaryText;
+                
+                // Description
+                document.getElementById('modal-description').textContent = data.description || 
+                    "No description available. Check if this job has been scraped fully.";
+                
+                // Skills parsing (if available in skills_desc or dynamically)
+                if (data.skills_desc) {
+                    document.getElementById('modal-skills-section').style.display = 'block';
+                    document.getElementById('modal-skills-container').innerHTML = `
+                        <div class="job-description-content" style="width: 100%">${escapeHtml(data.skills_desc)}</div>
+                    `;
+                } else {
+                    document.getElementById('modal-skills-section').style.display = 'none';
+                }
+                
+                // LinkedIn link
+                document.getElementById('modal-link-linkedin').href = data.job_posting_url || '#';
+                
+                // Apply button
+                const applyBtn = document.getElementById('modal-link-apply');
+                if (data.application_url) {
+                    applyBtn.href = data.application_url;
+                    applyBtn.style.display = 'inline-flex';
+                } else {
+                    applyBtn.style.display = 'none';
+                }
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('modal-job-title').textContent = 'Error Loading Details';
+                document.getElementById('modal-description').textContent = 'Unable to fetch details from local server. Make sure server.py is still running.';
+            }
+        }
+
+        // Close modal actions
+        function closeModal() {
+            detailsModal.classList.remove('active');
+        }
+
+        btnCloseModal.addEventListener('click', closeModal);
+        detailsModal.addEventListener('click', (e) => {
+            if (e.target === detailsModal) closeModal();
+        });
+        
+        // Close on ESC key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && detailsModal.classList.contains('active')) {
+                closeModal();
+            }
+        });
+
+        // Helper to escape HTML characters
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+
+        // Init load
+        fetchJobs();
+    </script>
+</body>
+</html>
