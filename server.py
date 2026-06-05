@@ -45,7 +45,7 @@ DEFAULT_TECH_CONFIG = {
         'data analyst', 'designer', 'ui/ux', 'technical writer', 'sales',
         'marketing', 'recruiter', 'human resources', 'hr', 'operations', 'customer success'
     ],
-    'location': 'India',
+    'location': '[{"location": "India", "workplace": ["any"]}]',
     'remote_filter': 'any',
     'job_type': ['full-time', 'contract', 'internship'],
     'experience_level': ['internship', 'entry', 'associate'],

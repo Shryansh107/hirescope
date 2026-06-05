@@ -79,51 +79,75 @@ def run_scrape(run_id: int):
 
         # ── Phase 1: Job Discovery ──────────────────────────────────────
         cycle_discovered = {}  # job_id → info
-        try:
-            searcher = JobSearchRetriever(config=config)
-        except Exception as e:
-            append_run_error(run_id, f"Cycle {cycle} session init failed: {e}")
-            print(f"[scrape_runner] Cycle {cycle} session init failed: {e}")
-            if conn: conn.close()
-            # If session init fails, wait 30 seconds and try again
-            time.sleep(30)
-            continue
 
-        for page in range(max_pages):
+        # Parse locations list
+        loc_str = config.get('location', '')
+        location_list = []
+        try:
+            if loc_str.startswith('['):
+                location_list = json.loads(loc_str)
+        except Exception:
+            pass
+
+        if not location_list:
+            location_list = [{'location': loc_str, 'workplace': [config.get('remote_filter', 'any')]}]
+
+        for loc_item in location_list:
             if _should_stop(run_id):
-                print(f"[scrape_runner] Stop requested at page {page + 1}")
                 break
+
+            loc_name = loc_item.get('location', '')
+            workplaces = loc_item.get('workplace', ['any'])
+
+            print(f"[scrape_runner] Scanning location: {loc_name} with workplace types: {workplaces}")
+
+            sub_config = dict(config)
+            sub_config['location'] = loc_name
+            sub_config['remote_filter'] = workplaces
 
             try:
-                start_offset = page * 25
-                jobs = searcher.get_jobs(start=start_offset)
+                searcher = JobSearchRetriever(config=sub_config)
             except Exception as e:
-                append_run_error(run_id, f"Search page {page + 1} error: {e}")
-                print(f"[scrape_runner] Search page {page + 1} error: {e}")
-                traceback.print_exc()
+                append_run_error(run_id, f"Cycle {cycle} session init failed for {loc_name}: {e}")
+                print(f"[scrape_runner] Cycle {cycle} session init failed for {loc_name}: {e}")
+                time.sleep(5)
                 continue
 
-            # Apply config-based filtering on titles
-            filtered_jobs = {}
-            for job_id, info in jobs.items():
-                if matches_config_filters(info.get('title', ''), config):
-                    filtered_jobs[job_id] = info
+            for page in range(max_pages):
+                if _should_stop(run_id):
+                    print(f"[scrape_runner] Stop requested at page {page + 1}")
+                    break
 
-            cycle_discovered.update(filtered_jobs)
-            all_discovered_ids.update(filtered_jobs.keys())
+                try:
+                    start_offset = page * 25
+                    jobs = searcher.get_jobs(start=start_offset)
+                except Exception as e:
+                    append_run_error(run_id, f"Search page {page + 1} error for {loc_name}: {e}")
+                    print(f"[scrape_runner] Search page {page + 1} error for {loc_name}: {e}")
+                    traceback.print_exc()
+                    continue
 
-            update_run_progress(
-                run_id,
-                pages_scraped=page + 1,
-                total_found=len(all_discovered_ids),
-            )
-            print(f"[scrape_runner] Cycle {cycle}, Page {page + 1}: {len(jobs)} raw → {len(filtered_jobs)} filtered, total run discovered: {len(all_discovered_ids)}")
+                # Apply config-based filtering on titles
+                filtered_jobs = {}
+                for job_id, info in jobs.items():
+                    if matches_config_filters(info.get('title', ''), config):
+                        filtered_jobs[job_id] = info
 
-            if not jobs:
-                print(f"[scrape_runner] No more results at page {page + 1}")
-                break
+                cycle_discovered.update(filtered_jobs)
+                all_discovered_ids.update(filtered_jobs.keys())
 
-            time.sleep(1)
+                update_run_progress(
+                    run_id,
+                    pages_scraped=page + 1,
+                    total_found=len(all_discovered_ids),
+                )
+                print(f"[scrape_runner] Cycle {cycle}, {loc_name}, Page {page + 1}: {len(jobs)} raw → {len(filtered_jobs)} filtered, total run discovered: {len(all_discovered_ids)}")
+
+                if not jobs:
+                    print(f"[scrape_runner] No more results at page {page + 1} for {loc_name}")
+                    break
+
+                time.sleep(1)
 
         if _should_stop(run_id):
             if conn: conn.close()

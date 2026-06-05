@@ -271,14 +271,34 @@ def build_search_url(config: dict, start: int = 0) -> str:
     # Remote filter
     remote = config.get('remote_filter', 'any')
     if remote and remote != 'any':
-        code = _REMOTE_MAP.get(remote.lower(), '')
-        if code:
-            filters.append(f"workplaceType:List({code})")
+        if isinstance(remote, list):
+            codes = [_REMOTE_MAP.get(r.lower(), '') for r in remote]
+            codes = [c for c in codes if c]
+            if codes:
+                filters.append(f"workplaceType:List({','.join(codes)})")
+        else:
+            code = _REMOTE_MAP.get(remote.lower(), '')
+            if code:
+                filters.append(f"workplaceType:List({code})")
 
     # Date posted
     date_posted = config.get('date_posted', 'any')
     if date_posted and date_posted != 'any':
-        tpr = _DATE_POSTED_MAP.get(date_posted, '')
+        if date_posted.startswith('hours_'):
+            try:
+                hrs = int(date_posted.split('_')[1])
+                tpr = f"r{hrs * 3600}"
+            except Exception:
+                tpr = ''
+        elif date_posted.startswith('days_'):
+            try:
+                days = int(date_posted.split('_')[1])
+                tpr = f"r{days * 86400}"
+            except Exception:
+                tpr = ''
+        else:
+            tpr = _DATE_POSTED_MAP.get(date_posted, '')
+
         if tpr:
             filters.append(f"timePostedRange:List({tpr})")
 

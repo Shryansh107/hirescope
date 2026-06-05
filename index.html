@@ -211,6 +211,19 @@
             min-width: 24px; text-align: center;
         }
 
+        /* Location Item cards */
+        .location-item {
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            background: rgba(255, 255, 255, 0.01);
+            transition: border-color 0.2s ease;
+        }
+        .location-item:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
         /* Sidebar Action Bar */
         .sidebar-actions {
             padding: 1rem 1.25rem; border-top: 1px solid var(--border-color);
@@ -529,19 +542,17 @@
                     </div>
                 </div>
 
-                <!-- Location -->
+                <!-- Location Targets -->
                 <div class="accordion-section open">
-                    <div class="accordion-header" onclick="toggleAccordion(this)">Location <i class="fa-solid fa-chevron-down"></i></div>
+                    <div class="accordion-header" onclick="toggleAccordion(this)">Locations & Work Types <i class="fa-solid fa-chevron-down"></i></div>
                     <div class="accordion-body">
-                        <div class="form-group"><label class="form-label">Location</label><input class="form-input" id="cfg-location" placeholder="e.g. India, Remote, Bengaluru…" list="location-suggestions"><datalist id="location-suggestions"><option value="India"><option value="United States"><option value="Remote"><option value="Bengaluru"><option value="Hyderabad"><option value="Mumbai"><option value="Delhi"><option value="Pune"><option value="Chennai"><option value="London"><option value="Berlin"><option value="Toronto"><option value="Singapore"><option value="San Francisco"><option value="New York"><option value="Seattle"></datalist></div>
-                        <div class="form-group"><label class="form-label">Work Type</label>
-                            <div class="toggle-group" id="toggle-remote">
-                                <button class="toggle-btn active" data-val="any">Any</button>
-                                <button class="toggle-btn" data-val="on-site">On-site</button>
-                                <button class="toggle-btn" data-val="remote">Remote</button>
-                                <button class="toggle-btn" data-val="hybrid">Hybrid</button>
-                            </div>
+                        <div id="locations-list-container">
+                            <!-- Dynamic location items will be inserted here -->
                         </div>
+                        <button type="button" class="btn btn-outline" id="btn-add-location" onclick="addLocationItem()" style="padding:0.4rem 0.8rem;font-size:0.8rem;width:100%;margin-top:0.5rem;"><i class="fa-solid fa-plus"></i> Add Location Target</button>
+                        <datalist id="location-suggestions">
+                            <option value="India"><option value="United States"><option value="Remote"><option value="Bengaluru"><option value="Hyderabad"><option value="Mumbai"><option value="Delhi"><option value="Pune"><option value="Chennai"><option value="London"><option value="Berlin"><option value="Toronto"><option value="Singapore"><option value="San Francisco"><option value="New York"><option value="Seattle">
+                        </datalist>
                     </div>
                 </div>
 
@@ -629,11 +640,19 @@
                 <div class="accordion-section">
                     <div class="accordion-header" onclick="toggleAccordion(this)">Date Posted <i class="fa-solid fa-chevron-down"></i></div>
                     <div class="accordion-body">
-                        <div class="radio-group" id="radio-date-posted">
-                            <label class="radio-item"><input type="radio" name="date_posted" value="any" checked> Any time</label>
-                            <label class="radio-item"><input type="radio" name="date_posted" value="past_month"> Past month</label>
-                            <label class="radio-item"><input type="radio" name="date_posted" value="past_week"> Past week</label>
-                            <label class="radio-item"><input type="radio" name="date_posted" value="past_24h"> Past 24 hours</label>
+                        <div class="form-group">
+                            <label class="form-label">Post Window</label>
+                            <select id="cfg-date-posted-type" class="input-control" onchange="handleDatePostedTypeChange()" style="margin-bottom: 0.5rem; width: 100%;">
+                                <option value="any">Any time</option>
+                                <option value="hours">Past X Hours</option>
+                                <option value="days">Past X Days</option>
+                                <option value="past_week">Past Week</option>
+                                <option value="past_month">Past Month</option>
+                            </select>
+                        </div>
+                        <div id="cfg-date-posted-value-container" class="form-group" style="display: none; margin-bottom: 0;">
+                            <label class="form-label" id="lbl-date-posted-value">Number of Hours</label>
+                            <input type="number" id="cfg-date-posted-val" class="form-input" min="1" value="24" style="width: 100%;">
                         </div>
                     </div>
                 </div>
@@ -870,13 +889,68 @@
     function closeModal(id) { document.getElementById(id).classList.remove('active'); if (id === 'progress-modal' && pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => closeModal(m.id)); });
 
-    // Toggle buttons
-    document.getElementById('toggle-remote').addEventListener('click', e => {
-        if (e.target.classList.contains('toggle-btn')) {
-            e.currentTarget.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
-            e.target.classList.add('active');
+    // Location and workplace dynamic handlers
+    window.handleLocWorkplaceChange = function(input) {
+        const parent = input.closest('.loc-workplaces');
+        if (input.value === 'any' && input.checked) {
+            parent.querySelectorAll('input').forEach(i => { if (i.value !== 'any') i.checked = false; });
+        } else if (input.checked) {
+            const anyInput = parent.querySelector('input[value="any"]');
+            if (anyInput) anyInput.checked = false;
         }
-    });
+        const checked = parent.querySelectorAll('input:checked');
+        if (checked.length === 0) {
+            const anyInput = parent.querySelector('input[value="any"]');
+            if (anyInput) anyInput.checked = true;
+        }
+    };
+
+    window.addLocationItem = function(locName = '', workplaces = ['any']) {
+        const container = document.getElementById('locations-list-container');
+        const div = document.createElement('div');
+        div.className = 'location-item';
+        
+        const anyChecked = workplaces.includes('any') ? 'checked' : '';
+        const onsiteChecked = workplaces.includes('on-site') ? 'checked' : '';
+        const remoteChecked = workplaces.includes('remote') ? 'checked' : '';
+        const hybridChecked = workplaces.includes('hybrid') ? 'checked' : '';
+        
+        div.innerHTML = `
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+                <input class="form-input loc-name-input" placeholder="e.g. India, United States" list="location-suggestions" value="${locName}" style="flex: 1; padding: 0.4rem 0.6rem; font-size: 0.82rem;">
+                <button type="button" class="btn-action" onclick="this.closest('.location-item').remove()" title="Remove Location" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); color: #f87171; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;"><i class="fa-solid fa-trash" style="font-size: 0.75rem;"></i></button>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="font-size: 0.75rem;">Workplace Types</label>
+                <div class="checkbox-group loc-workplaces" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.25rem;">
+                    <label class="checkbox-item" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;"><input type="checkbox" value="any" ${anyChecked} onchange="handleLocWorkplaceChange(this)"> Any</label>
+                    <label class="checkbox-item" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;"><input type="checkbox" value="on-site" ${onsiteChecked} onchange="handleLocWorkplaceChange(this)"> On-site</label>
+                    <label class="checkbox-item" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;"><input type="checkbox" value="remote" ${remoteChecked} onchange="handleLocWorkplaceChange(this)"> Remote</label>
+                    <label class="checkbox-item" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;"><input type="checkbox" value="hybrid" ${hybridChecked} onchange="handleLocWorkplaceChange(this)"> Hybrid</label>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    };
+
+    window.handleDatePostedTypeChange = function() {
+        const type = document.getElementById('cfg-date-posted-type').value;
+        const container = document.getElementById('cfg-date-posted-value-container');
+        const label = document.getElementById('lbl-date-posted-value');
+        const valInput = document.getElementById('cfg-date-posted-val');
+        
+        if (type === 'hours') {
+            container.style.display = 'block';
+            label.textContent = 'Number of Hours';
+            if (!valInput.value || valInput.value === '7' || valInput.value === '30') valInput.value = '24';
+        } else if (type === 'days') {
+            container.style.display = 'block';
+            label.textContent = 'Number of Days';
+            if (!valInput.value || valInput.value === '24') valInput.value = '7';
+        } else {
+            container.style.display = 'none';
+        }
+    };
 
     function getCheckedValues(groupId) { return [...document.querySelectorAll(`#${groupId} input:checked`)].map(i => i.value); }
     function setCheckedValues(groupId, values) {
@@ -893,8 +967,18 @@
             keywords: tagInputs['tag-keywords'].getTags(),
             job_titles: tagInputs['tag-job-titles'].getTags(),
             excluded_keywords: tagInputs['tag-excluded-keywords'].getTags(),
-            location: document.getElementById('cfg-location').value,
-            remote_filter: document.querySelector('#toggle-remote .toggle-btn.active')?.dataset.val || 'any',
+            location: (function() {
+                const list = [];
+                document.querySelectorAll('#locations-list-container .location-item').forEach(item => {
+                    const loc = item.querySelector('.loc-name-input').value.trim();
+                    if (loc) {
+                        const workplace = [...item.querySelectorAll('.loc-workplaces input:checked')].map(i => i.value);
+                        list.push({ location: loc, workplace: workplace });
+                    }
+                });
+                return JSON.stringify(list);
+            })(),
+            remote_filter: 'any',
             job_type: getCheckedValues('chk-job-type'),
             experience_level: getCheckedValues('chk-experience'),
             years_of_experience_min: parseInt(document.getElementById('cfg-years-min').value) || null,
@@ -909,7 +993,14 @@
             excluded_companies: tagInputs['tag-excluded-companies'].getTags(),
             company_size: getCheckedValues('chk-company-size'),
             industry: tagInputs['tag-industry'].getTags(),
-            date_posted: document.querySelector('#radio-date-posted input:checked')?.value || 'any',
+            date_posted: (function() {
+                const type = document.getElementById('cfg-date-posted-type').value;
+                if (type === 'hours' || type === 'days') {
+                    const val = parseInt(document.getElementById('cfg-date-posted-val').value) || 1;
+                    return `${type}_${val}`;
+                }
+                return type;
+            })(),
             max_jobs_to_scrape: parseInt(document.getElementById('cfg-max-jobs').value) || 100,
             pages_to_scrape: parseInt(document.getElementById('cfg-max-pages').value) || 10,
             weight_title_match: parseInt(document.getElementById('cfg-w-title').value),
@@ -922,8 +1013,28 @@
         tagInputs['tag-keywords'].setTags(cfg.keywords);
         tagInputs['tag-job-titles'].setTags(cfg.job_titles);
         tagInputs['tag-excluded-keywords'].setTags(cfg.excluded_keywords);
-        document.getElementById('cfg-location').value = cfg.location || '';
-        document.querySelectorAll('#toggle-remote .toggle-btn').forEach(b => { b.classList.toggle('active', b.dataset.val === (cfg.remote_filter || 'any')); });
+        
+        const locContainer = document.getElementById('locations-list-container');
+        locContainer.innerHTML = '';
+        let locationList = [];
+        try {
+            if (cfg.location && cfg.location.startsWith('[')) {
+                locationList = JSON.parse(cfg.location);
+            } else if (cfg.location) {
+                locationList = [{ location: cfg.location, workplace: [cfg.remote_filter || 'any'] }];
+            }
+        } catch (e) {
+            if (cfg.location) locationList = [{ location: cfg.location, workplace: [cfg.remote_filter || 'any'] }];
+        }
+        
+        if (locationList.length === 0) {
+            addLocationItem();
+        } else {
+            locationList.forEach(item => {
+                addLocationItem(item.location, item.workplace);
+            });
+        }
+
         setCheckedValues('chk-job-type', cfg.job_type);
         setCheckedValues('chk-experience', cfg.experience_level);
         document.getElementById('cfg-years-min').value = cfg.years_of_experience_min || '';
@@ -943,7 +1054,22 @@
         tagInputs['tag-excluded-companies'].setTags(cfg.excluded_companies);
         setCheckedValues('chk-company-size', cfg.company_size);
         tagInputs['tag-industry'].setTags(cfg.industry);
-        document.querySelectorAll('#radio-date-posted input').forEach(r => { r.checked = r.value === (cfg.date_posted || 'any'); });
+        
+        const dateVal = cfg.date_posted || 'any';
+        const typeSelect = document.getElementById('cfg-date-posted-type');
+        const valInput = document.getElementById('cfg-date-posted-val');
+        
+        if (dateVal.startsWith('hours_')) {
+            typeSelect.value = 'hours';
+            valInput.value = dateVal.split('_')[1];
+        } else if (dateVal.startsWith('days_')) {
+            typeSelect.value = 'days';
+            valInput.value = dateVal.split('_')[1];
+        } else {
+            typeSelect.value = dateVal;
+        }
+        handleDatePostedTypeChange();
+
         document.getElementById('cfg-max-jobs').value = cfg.max_jobs_to_scrape || 100;
         document.getElementById('cfg-max-pages').value = cfg.pages_to_scrape || 10;
         const wt = document.getElementById('cfg-w-title'); wt.value = cfg.weight_title_match ?? 7; wt.nextElementSibling.textContent = wt.value;
