@@ -75,13 +75,13 @@ def compute_relevance(job_data: dict, config: dict) -> tuple[int, list[str]]:
             raw_score += 30.0 * (w_title / 10.0)
             matched.extend([f"title:{m}" for m in title_matches])
 
-    # ── 2. Required skills match  (base 25 pts, proportional) ──────────
+    # ── 2. Required skills match  (base 25 pts, any-one-match) ──────────
     required_skills = _lower_list(config.get('required_skills', []))
     if required_skills:
         skill_matches = _text_contains_any(combined_text, required_skills)
-        fraction = len(skill_matches) / len(required_skills)
-        raw_score += 25.0 * fraction * (w_skills / 10.0)
-        matched.extend([f"skill:{m}" for m in skill_matches])
+        if skill_matches:
+            raw_score += 25.0 * (w_skills / 10.0)
+            matched.extend([f"skill:{m}" for m in skill_matches])
 
     # ── 3. Salary range match  (base 20 pts) ───────────────────────────
     expected_min = config.get('expected_pay_min')
@@ -124,13 +124,24 @@ def compute_relevance(job_data: dict, config: dict) -> tuple[int, list[str]]:
             raw_score += 15.0
             matched.append(f"experience:{job_level}")
 
-    # ── 5. Programming languages match  (10 pts, proportional) ─────────
-    languages = _lower_list(config.get('programming_languages', []))
-    if languages:
-        lang_matches = _text_contains_any(combined_text, languages)
-        fraction = len(lang_matches) / len(languages)
-        raw_score += 10.0 * fraction
-        matched.extend([f"lang:{m}" for m in lang_matches])
+    # ── 4b. Numeric Years of Experience filter/penalty ──────────────────
+    exp_min = config.get('years_of_experience_min')
+    exp_max = config.get('years_of_experience_max')
+    job_exp = job_data.get('years_experience')
+
+    if job_exp is not None:
+        min_val = int(exp_min) if exp_min is not None and str(exp_min).isdigit() else 0
+        max_val = int(exp_max) if exp_max is not None and str(exp_max).isdigit() else 99
+        
+        if job_exp < min_val or job_exp > max_val:
+            raw_score -= 40.0
+            matched.append(f"penalty:experience_mismatch_req_{job_exp}_yrs")
+        else:
+            raw_score += 15.0
+            matched.append(f"experience_match:{job_exp}_yrs")
+
+    # ── 5. Programming languages match (Disabled - merged into skills) ─
+    pass
 
     # ── 6. Excluded keywords penalty  (-50 pts) ────────────────────────
     excluded = _lower_list(config.get('excluded_keywords', []))

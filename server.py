@@ -30,6 +30,66 @@ def _ensure_db():
     create_tables(conn, cursor)
     conn.close()
 
+    # Seed default tech configuration if no configs exist
+    try:
+        if not list_configs():
+            print("[+] Database is empty. Seeding default tech configuration profile...")
+            default_cfg = {
+                'profile_name': 'Default Tech (0-2 years)',
+                'keywords': [
+                    'software engineer', 'software developer', 'frontend developer', 
+                    'backend developer', 'fullstack developer', 'python developer', 
+                    'golang developer', 'react developer', 'node developer'
+                ],
+                'job_titles': [
+                    'Software Engineer', 'Software Developer', 'Associate Software Engineer',
+                    'Junior Software Engineer', 'Graduate Software Engineer', 'Frontend Engineer',
+                    'Backend Engineer', 'Fullstack Engineer', 'Full Stack Developer', 'DevOps Engineer',
+                    'Cloud Engineer', 'SRE', 'Site Reliability Engineer', 'Data Engineer',
+                    'QA Engineer', 'Automation Engineer', 'SDET', 'Mobile Developer',
+                    'iOS Developer', 'Android Developer', 'React Native Developer'
+                ],
+                'excluded_keywords': [
+                    'senior', 'sr.', 'sr ', 'lead', 'principal', 'architect', 'staff', 'head',
+                    'director', 'vp', 'manager', 'product manager', 'project manager',
+                    'program manager', 'scrum master', 'agile coach', 'business analyst',
+                    'data analyst', 'designer', 'ui/ux', 'technical writer', 'sales',
+                    'marketing', 'recruiter', 'human resources', 'hr', 'operations', 'customer success'
+                ],
+                'location': 'India',
+                'remote_filter': 'any',
+                'job_type': ['full-time', 'contract', 'internship'],
+                'experience_level': ['internship', 'entry', 'associate'],
+                'years_of_experience_min': 0,
+                'years_of_experience_max': 2,
+                'expected_pay_min': None,
+                'expected_pay_max': None,
+                'pay_currency': 'USD',
+                'required_skills': [
+                    'go', 'golang', 'c++', 'react', 'react.js', 'javascript', 'typescript', 
+                    'python', 'java', 'c#', 'rust', 'html', 'css', 'sql', 'git', 'docker', 
+                    'aws', 'kubernetes'
+                ],
+                'preferred_skills': [],
+                'programming_languages': [],
+                'company_names': [],
+                'excluded_companies': [],
+                'company_size': [],
+                'industry': [],
+                'date_posted': 'past_week',
+                'max_jobs_to_scrape': 500,
+                'pages_to_scrape': 40,
+                'weight_title_match': 8,
+                'weight_skills_match': 6,
+                'weight_salary_match': 4,
+                'is_active': 1,
+            }
+            cfg_id = save_config(default_cfg)
+            activate_config(cfg_id)
+            print(f"[+] Default profile seeded and activated (ID: {cfg_id})")
+    except Exception as e:
+        print(f"[!] Warning: Failed to seed default configuration: {e}")
+
 
 _ensure_db()
 

@@ -597,9 +597,9 @@
                 <div class="accordion-section">
                     <div class="accordion-header" onclick="toggleAccordion(this)">Skills & Tech <i class="fa-solid fa-chevron-down"></i></div>
                     <div class="accordion-body">
-                        <div class="form-group"><label class="form-label">Required Skills</label><div class="tag-input-container" id="tag-required-skills"><input class="tag-input-field" placeholder="e.g. React, Node.js…"></div></div>
-                        <div class="form-group"><label class="form-label">Preferred Skills</label><div class="tag-input-container" id="tag-preferred-skills"><input class="tag-input-field" placeholder="Nice-to-have…"></div></div>
-                        <div class="form-group"><label class="form-label">Programming Languages</label><div class="tag-input-container" id="tag-languages"><input class="tag-input-field" placeholder="e.g. Python, Go…" list="lang-suggestions"><datalist id="lang-suggestions"><option value="Python"><option value="JavaScript"><option value="TypeScript"><option value="Java"><option value="Go"><option value="Rust"><option value="C++"><option value="C#"><option value="Ruby"><option value="PHP"><option value="Swift"><option value="Kotlin"><option value="Scala"><option value="R"></datalist></div></div>
+                        <div class="form-group"><label class="form-label">Target Skills & Technologies</label><div class="tag-input-container" id="tag-required-skills"><input class="tag-input-field" placeholder="e.g. React, Node.js, Go, C++…"></div></div>
+                        <div class="form-group" style="display:none"><label class="form-label">Preferred Skills</label><div class="tag-input-container" id="tag-preferred-skills"><input class="tag-input-field" placeholder="Nice-to-have…"></div></div>
+                        <div class="form-group" style="display:none"><label class="form-label">Programming Languages</label><div class="tag-input-container" id="tag-languages"><input class="tag-input-field" placeholder="e.g. Python, Go…" list="lang-suggestions"><datalist id="lang-suggestions"><option value="Python"><option value="JavaScript"><option value="TypeScript"><option value="Java"><option value="Go"><option value="Rust"><option value="C++"><option value="C#"><option value="Ruby"><option value="PHP"><option value="Swift"><option value="Kotlin"><option value="Scala"><option value="R"></datalist></div></div>
                     </div>
                 </div>
 
@@ -923,9 +923,14 @@
         document.getElementById('cfg-pay-min').value = cfg.expected_pay_min || '';
         document.getElementById('cfg-pay-max').value = cfg.expected_pay_max || '';
         document.getElementById('cfg-currency').value = cfg.pay_currency || 'USD';
-        tagInputs['tag-required-skills'].setTags(cfg.required_skills);
-        tagInputs['tag-preferred-skills'].setTags(cfg.preferred_skills);
-        tagInputs['tag-languages'].setTags(cfg.programming_languages);
+        const mergedSkills = [
+            ...(cfg.required_skills || []),
+            ...(cfg.preferred_skills || []),
+            ...(cfg.programming_languages || [])
+        ];
+        tagInputs['tag-required-skills'].setTags(mergedSkills);
+        tagInputs['tag-preferred-skills'].setTags([]);
+        tagInputs['tag-languages'].setTags([]);
         tagInputs['tag-company-names'].setTags(cfg.company_names);
         tagInputs['tag-excluded-companies'].setTags(cfg.excluded_companies);
         setCheckedValues('chk-company-size', cfg.company_size);

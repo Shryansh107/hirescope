@@ -47,10 +47,50 @@ def clean_job_postings(all_jobs):
                             posting[row['table']][row['name']] = strip_val(value, row['strip'])
 
 
+        if 'jobs' in posting and 'description' in posting['jobs']:
+            desc = posting['jobs'].get('description') or ''
+            extracted_exp = extract_years_experience(desc)
+            if extracted_exp is not None:
+                posting['jobs']['years_experience'] = extracted_exp
+
         # posting['companies']['size_range'] = size_ranges.get(job_info['included'][-1])
         all_cleaned_postings[job_id] = posting
 
     return all_cleaned_postings
+
+
+def extract_years_experience(description: str) -> int | None:
+    """
+    Heuristically extract required years of experience from job description text.
+    """
+    if not description:
+        return None
+    import re
+    text = " ".join(description.lower().split())
+    
+    # Matches patterns like "3+ years", "3-5 years", "3 to 5 yrs", "1 year"
+    pattern = r'\b(\d+)\s*(?:\+|-\s*(\d+)|\s*to\s*(\d+))?\s*(?:years?|yrs?|yr\b)'
+    matches = re.finditer(pattern, text)
+    
+    best_guess = None
+    context_keywords = {
+        "experience", "exp", "background", "required", "minimum", 
+        "at least", "work", "developer", "engineer", "software", "development"
+    }
+    
+    for match in matches:
+        start = max(0, match.start() - 50)
+        end = min(len(text), match.end() + 50)
+        context = text[start:end]
+        
+        if any(kw in context for kw in context_keywords):
+            val = int(match.group(1))
+            if 0 <= val <= 20:
+                if best_guess is None or val < best_guess:
+                    best_guess = val
+                    
+    return best_guess
+
 
 
 def matches_config_filters(title: str, config: dict) -> bool:
