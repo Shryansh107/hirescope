@@ -1,5 +1,4 @@
 # LinkedIn Job Scraper
-   
 <img src="media/logo.jpg" width="530" height="267">
 
 **Program to scrape and store a constant stream of LinkedIn job postings and dozens of their respective attributes**
