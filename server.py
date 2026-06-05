@@ -14,6 +14,7 @@ from scripts.config_db import (
     create_run, update_run_progress, get_run, get_current_run, list_runs,
     cleanup_stale_runs,
 )
+from scripts.supabase_client import using_supabase
 
 PORT = 8000
 DB_FILE = 'linkedin_jobs.db'
@@ -77,10 +78,11 @@ DEFAULT_TECH_CONFIG = {
 
 def _ensure_db():
     """Make sure the DB and all tables exist."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    create_tables(conn, cursor)
-    conn.close()
+    if not using_supabase():
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        create_tables(conn, cursor)
+        conn.close()
 
     # Seed default tech configuration if no configs exist
     try:
@@ -96,6 +98,29 @@ def _ensure_db():
 def _reset_default_config():
     """Reset active config to Default Tech and restore its permanent values. Keep user-saved profiles."""
     try:
+        if using_supabase():
+            from scripts.supabase_client import get_supabase_client
+            client = get_supabase_client()
+            # 1. Delete temporary Quick Scrape profiles
+            client._request("DELETE", "scrape_configs", params={"profile_name": "eq.Quick Scrape"})
+
+            # 2. Check if default config already exists
+            configs = client.select_configs()
+            default_cfg = next((c for c in configs if c.get('profile_name') == DEFAULT_TECH_CONFIG['profile_name']), None)
+            
+            from scripts.config_db import save_config, activate_config
+            if default_cfg:
+                default_id = default_cfg['id']
+                cfg = dict(DEFAULT_TECH_CONFIG)
+                cfg['id'] = default_id
+                save_config(cfg)
+                activate_config(default_id)
+            else:
+                cfg_id = save_config(dict(DEFAULT_TECH_CONFIG))
+                activate_config(cfg_id)
+            print("[+] Configurations reset to Default Tech config (Supabase).")
+            return
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         # 1. Delete temporary Quick Scrape profiles
@@ -275,6 +300,16 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
     # ── Jobs endpoints ─────────────────────────────────────────────────
 
     def _handle_get_jobs(self):
+        if using_supabase():
+            try:
+                from scripts.supabase_client import get_supabase_client
+                supabase = get_supabase_client()
+                jobs = supabase.select_jobs()
+                self._send_json(jobs)
+            except Exception as e:
+                self._send_error(500, f"Supabase error: {str(e)}")
+            return
+
         if not os.path.exists(DB_FILE):
             self._send_error(404, "Database not found. Run the scraper first.")
             return
@@ -315,6 +350,19 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
             self._send_error(500, f"Database error: {str(e)}")
 
     def _handle_get_job_detail(self, job_id):
+        if using_supabase():
+            try:
+                from scripts.supabase_client import get_supabase_client
+                supabase = get_supabase_client()
+                job = supabase.select_job_detail(job_id)
+                if job is None:
+                    self._send_error(404, f"Job {job_id} not found in Supabase.")
+                else:
+                    self._send_json(job)
+            except Exception as e:
+                self._send_error(500, f"Supabase error: {str(e)}")
+            return
+
         if not os.path.exists(DB_FILE):
             self._send_error(404, "Database not found.")
             return

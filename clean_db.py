@@ -1,11 +1,36 @@
 import sqlite3
 from scripts.config_db import get_active_config
 from scripts.helpers import matches_config_filters
+from scripts.supabase_client import using_supabase, get_supabase_client
 
 DB_FILE = 'linkedin_jobs.db'
 
 def clean_database():
     try:
+        # Load active config for filtering rules
+        config = get_active_config()
+        if not config:
+            print("[!] No active scrape config found. Skipping clean (no filter rules to apply).")
+            return
+
+        print(f'[+] Using config: "{config.get("profile_name", "unnamed")}"')
+
+        if using_supabase():
+            supabase = get_supabase_client()
+            jobs = supabase.select_jobs()
+            
+            deleted_count = 0
+            for job in jobs:
+                job_id = job.get('job_id')
+                title = job.get('title')
+                if job_id and title and not matches_config_filters(title, config):
+                    print(f"[-] Deleting non-matching job {job_id}: {title}")
+                    # Delete from Supabase. Cascade deletes handle child tables automatically.
+                    supabase._request("DELETE", "jobs", params={"job_id": f"eq.{job_id}"})
+                    deleted_count += 1
+            print(f"\n[+] Clean-up complete! Removed {deleted_count} non-matching jobs from Supabase.")
+            return
+
         conn = sqlite3.connect(DB_FILE)
         cursor = conn.cursor()
         
@@ -16,15 +41,6 @@ def clean_database():
             conn.close()
             return
         
-        # Load active config for filtering rules
-        config = get_active_config()
-        if not config:
-            print("[!] No active scrape config found. Skipping clean (no filter rules to apply).")
-            conn.close()
-            return
-
-        print(f'[+] Using config: "{config.get("profile_name", "unnamed")}"')
-
         cursor.execute("SELECT job_id, title FROM jobs;")
         jobs = cursor.fetchall()
         

@@ -51,6 +51,7 @@ No environment variables are needed. The system automatically initializes `linke
 2. **Schema Upgrades/Migrations:**
    * For **New Projects:** Copy the SQL script in `supabase_schema.sql` and run it in the Supabase SQL Editor.
    * For **Existing Deployments (Migrating Older Schema):** Copy the SQL script in `supabase_migration.sql` and run it in the Supabase SQL Editor.
+   * For **Clean Install / Wiping Existing Data:** Copy the SQL script in `supabase_reset_schema.sql` and run it in the Supabase SQL Editor. This drops all old tables/views and sets up the latest database structures cleanly.
 
 ---
 
@@ -103,6 +104,7 @@ The easiest and most feature-rich way to run the scraper, configure filters, and
    Open `index.html` in your web browser (or serve it using a local HTTP server).
 3. **Configure scraping parameters:**
    Use the UI sidebar to customize keywords, job titles, exclusions, locations, salaries, etc.
+   * **Import & Export Profiles:** You can save configuration profiles as local JSON files by clicking **"Export"** in the sidebar actions. To load or share configurations, click **"Import"** and select a previously exported profile JSON file.
 4. **Trigger a run:**
    Click **"Start Scraping"** on the dashboard. The server will run the scraper in a background thread and stream progress in real-time.
 
@@ -150,3 +152,29 @@ python to_csv.py --folder csv_output --database linkedin_jobs.db
 ```
 
 This will create `csv_output/job_postings.csv` containing a fully compiled and merged dataset.
+
+---
+
+## 10. Switching Database Backends Dynamically (CLI Override)
+
+All scraper scripts and utilities support dynamic switching between **SQLite** and **Supabase** via the `--db` or `--database` argument. This overrides your default `.env` settings:
+
+### Local SQLite mode
+```bash
+python server.py --db sqlite
+python search_retriever.py --db sqlite
+python details_retriever.py --db sqlite
+python clean_db.py --db sqlite
+python to_csv.py --db sqlite
+```
+
+### Supabase mode
+```bash
+python server.py --db supabase
+python search_retriever.py --db supabase
+python details_retriever.py --db supabase
+python clean_db.py --db supabase
+python to_csv.py --db supabase
+```
+
+*(Alternatively, you can set the `DB_BACKEND` environment variable to `sqlite` or `supabase`).*

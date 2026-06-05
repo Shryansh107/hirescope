@@ -3,8 +3,7 @@ import csv
 import os
 import pandas as pd
 import argparse
-
-
+from scripts.supabase_client import using_supabase, get_supabase_client
 
 parser = argparse.ArgumentParser()
 
@@ -12,70 +11,106 @@ parser.add_argument('-d', '--database', default='linkedin_jobs.db')
 parser.add_argument('-f', '--folder', default='csv_files')
 args = parser.parse_args()
 
-
 folder_name = args.folder
 
 if not os.path.exists(folder_name):
     os.mkdir(folder_name)
 
-# Connect to the SQLite database
-conn = sqlite3.connect(args.database)
-cursor = conn.cursor()
+TABLE_NAMES = [
+    'jobs', 'salaries', 'companies', 'employee_counts', 'benefits', 
+    'skills', 'job_skills', 'industries', 'job_industries', 
+    'company_specialities', 'company_industries', 'scrape_configs', 'scrape_runs'
+]
 
-cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+DEFAULT_HEADERS = {
+    'jobs': ['job_id', 'title', 'sponsored', 'discovered_at', 'scraped', 'company_id', 'posted_at', 'scraped_at', 'location', 'formatted_work_type', 'formatted_experience_level', 'years_experience', 'views', 'applies', 'job_posting_url', 'application_url', 'application_type', 'expiry', 'closed_time', 'skills_desc', 'description'],
+    'salaries': ['salary_id', 'job_id', 'max_salary', 'med_salary', 'min_salary', 'pay_period', 'currency', 'compensation_type']
+}
 
-# Fetch all results
-table_names = [x[0] for x in cursor.fetchall()]
+if using_supabase():
+    print("[+] Exporting tables from Supabase...")
+    supabase = get_supabase_client()
+    for table_name in TABLE_NAMES:
+        rows = supabase.select_table(table_name)
+        csv_filename = f'{folder_name}/{table_name}.csv'
+        with open(csv_filename, 'w', newline='', encoding='utf-8') as csv_file:
+            if rows:
+                column_names = list(rows[0].keys())
+                csv_writer = csv.DictWriter(csv_file, fieldnames=column_names)
+                csv_writer.writeheader()
+                csv_writer.writerows(rows)
+            else:
+                # Write default headers if available, otherwise write empty file
+                headers = DEFAULT_HEADERS.get(table_name, [])
+                csv_writer = csv.writer(csv_file)
+                csv_writer.writerow(headers)
+else:
+    # Connect to the SQLite database
+    print(f"[+] Exporting tables from SQLite database '{args.database}'...")
+    conn = sqlite3.connect(args.database)
+    cursor = conn.cursor()
 
-print(table_names)
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
 
-for table_name in table_names:
-  # Replace 'your_table' with the actual table name
+    # Fetch all results
+    table_names = [x[0] for x in cursor.fetchall()]
 
-  # Execute a query to fetch all rows from the table
-  query = f'SELECT * FROM {table_name}'
-  cursor.execute(query)
-  rows = cursor.fetchall()
+    print(table_names)
 
-  # Replace 'output.csv' with the desired output CSV file name
-  csv_filename = f'{folder_name}/{table_name}.csv'
+    for table_name in table_names:
+      # Execute a query to fetch all rows from the table
+      query = f'SELECT * FROM {table_name}'
+      cursor.execute(query)
+      rows = cursor.fetchall()
 
-  # Write the data to the CSV file
-  with open(csv_filename, 'w', newline='', encoding='utf-8') as csv_file:
-      csv_writer = csv.writer(csv_file)
+      csv_filename = f'{folder_name}/{table_name}.csv'
 
-      # Write header row with column names
-      column_names = [description[0] for description in cursor.description]
-      csv_writer.writerow(column_names)
+      # Write the data to the CSV file
+      with open(csv_filename, 'w', newline='', encoding='utf-8') as csv_file:
+          csv_writer = csv.writer(csv_file)
 
-      # Write data rows
-      csv_writer.writerows(rows)
+          # Write header row with column names
+          column_names = [description[0] for description in cursor.description]
+          csv_writer.writerow(column_names)
 
-# Close the connection
-conn.close()
+          # Write data rows
+          csv_writer.writerows(rows)
 
-jobs = pd.read_csv(f'{folder_name}/jobs.csv')
-jobs = jobs[jobs['scraped'] > 0]
+    # Close the connection
+    conn.close()
 
-salaries = pd.read_csv(f'{folder_name}/salaries.csv')
-salaries.drop(columns='salary_id', inplace=True)
+# Read and merge jobs & salaries
+jobs_csv = f'{folder_name}/jobs.csv'
+salaries_csv = f'{folder_name}/salaries.csv'
 
-merged_df = pd.merge(jobs, salaries, on='job_id', how='left')
+if os.path.exists(jobs_csv) and os.path.exists(salaries_csv):
+    jobs = pd.read_csv(jobs_csv)
+    jobs = jobs[jobs['scraped'] > 0]
 
-# merged_df = merged_df.drop(columns='scraped')
+    salaries = pd.read_csv(salaries_csv)
+    if 'salary_id' in salaries.columns:
+        salaries.drop(columns='salary_id', inplace=True)
 
-col = ['job_id', 'company_id', 'title', 'description', 'max_salary', 'med_salary', 'min_salary', 'pay_period',
-       'formatted_work_type', 'location',
-       'applies', 'original_listed_time', 'remote_allowed', 'views','job_posting_url',
-       'application_url', 'application_type', 'expiry',
-       'closed_time', 'formatted_experience_level',
-       'skills_desc',
-       'listed_time', 'posting_domain', 'sponsored', 'work_type',
-       'currency',
-       'compensation_type', 'scraped']
+    merged_df = pd.merge(jobs, salaries, on='job_id', how='left')
 
-merged_df = merged_df[col]
+    col = ['job_id', 'company_id', 'title', 'description', 'max_salary', 'med_salary', 'min_salary', 'pay_period',
+           'formatted_work_type', 'location',
+           'applies', 'original_listed_time', 'remote_allowed', 'views','job_posting_url',
+           'application_url', 'application_type', 'expiry',
+           'closed_time', 'formatted_experience_level',
+           'skills_desc',
+           'listed_time', 'posting_domain', 'sponsored', 'work_type',
+           'currency',
+           'compensation_type', 'scraped']
 
-merged_df.to_csv(f'{folder_name}/job_postings.csv', index=False)
+    # Ensure all columns exist in merged_df
+    for c in col:
+        if c not in merged_df.columns:
+            merged_df[c] = None
 
-os.remove(f"{folder_name}/jobs.csv")
+    merged_df = merged_df[col]
+    merged_df.to_csv(f'{folder_name}/job_postings.csv', index=False)
+    os.remove(jobs_csv)
+    print(f"[+] Created merged dataset at '{folder_name}/job_postings.csv'")
+else:
+    print("[-] Skip merging: jobs.csv or salaries.csv not found.")

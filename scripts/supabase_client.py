@@ -1,6 +1,7 @@
 import json
 import os
 import base64
+import sys
 from datetime import datetime, timezone
 
 import requests
@@ -28,7 +29,46 @@ INTEGER_COLUMNS = {
 }
 
 
+_db_backend_override = None
+
+def get_cli_database_override():
+    global _db_backend_override
+    if _db_backend_override is not None:
+        return _db_backend_override
+
+    # Check sys.argv
+    for idx, arg in enumerate(sys.argv):
+        if arg in ('--db', '--database'):
+            if idx + 1 < len(sys.argv):
+                val = sys.argv[idx + 1].strip().lower()
+                if val in ('supabase', 'sqlite'):
+                    _db_backend_override = val
+                    return _db_backend_override
+        elif arg.startswith('--db='):
+            val = arg.split('=', 1)[1].strip().lower()
+            if val in ('supabase', 'sqlite'):
+                _db_backend_override = val
+                return _db_backend_override
+        elif arg.startswith('--database='):
+            val = arg.split('=', 1)[1].strip().lower()
+            if val in ('supabase', 'sqlite'):
+                _db_backend_override = val
+                return _db_backend_override
+    return None
+
 def using_supabase():
+    override = get_cli_database_override()
+    if override == 'supabase':
+        return True
+    elif override == 'sqlite':
+        return False
+
+    env_db = os.getenv("DB_BACKEND", "").lower()
+    if env_db == "supabase":
+        return True
+    elif env_db == "sqlite":
+        return False
+
     return bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
 
 
@@ -260,6 +300,24 @@ class SupabaseClient:
             "limit": str(limit),
         }) or []
         return rows
+
+    def select_jobs(self):
+        rows = self._request("GET", "job_dashboard", params={
+            "select": "*",
+            "order": "job_id.desc",
+        }) or []
+        return rows
+
+    def select_job_detail(self, job_id):
+        rows = self._request("GET", "job_details", params={
+            "select": "*",
+            "job_id": f"eq.{job_id}",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
+
+    def select_table(self, table, select="*"):
+        return self._request("GET", table, params={"select": select}) or []
 
 
 def get_supabase_client():
