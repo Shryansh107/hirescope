@@ -52,3 +52,48 @@ def clean_job_postings(all_jobs):
 
     return all_cleaned_postings
 
+
+def matches_config_filters(title: str, config: dict) -> bool:
+    """
+    Check whether a job title passes the config-based filters.
+
+    Returns True if the job should be included, False if excluded.
+
+    Checks:
+    - excluded_keywords: if any appear in the title → exclude
+    - job_titles / keywords: if specified, at least one must match → include
+      (if neither is specified, all titles are included)
+    """
+    if not title:
+        return False
+
+    title_lower = title.lower()
+
+    # Check excluded keywords
+    excluded = config.get('excluded_keywords', [])
+    if excluded and isinstance(excluded, list):
+        for kw in excluded:
+            if kw and kw.lower() in title_lower:
+                return False
+
+    # Check if title matches at least one keyword or job title
+    keywords = config.get('keywords', [])
+    job_titles = config.get('job_titles', [])
+
+    # Combine all positive-match terms
+    match_terms = []
+    if isinstance(keywords, list):
+        match_terms.extend(keywords)
+    if isinstance(job_titles, list):
+        match_terms.extend(job_titles)
+
+    # If no positive filters are set, accept everything
+    if not match_terms:
+        return True
+
+    # At least one term must appear in the title
+    for term in match_terms:
+        if term and term.lower() in title_lower:
+            return True
+
+    return False

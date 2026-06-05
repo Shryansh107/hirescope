@@ -1,75 +1,121 @@
 import random
+import os
+import json
+import hashlib
+import time
+import requests
+import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
-import requests
-import pandas as pd
 from scripts.helpers import strip_val, get_value_by_path
 
 
-# Search configurations for SDE roles (Python, Go, JS, TS, Frontend, Backend) at entry level / internship / associate (0-3 years)
+# ── Browser config ──────────────────────────────────────────────────────
 BROWSER = 'chrome'
-KEYWORDS = '(python OR go OR javascript OR typescript OR frontend OR backend) AND (sde OR developer OR engineer OR intern OR internship)'
-EXPERIENCE_LEVELS = ['1', '2', '3']  # 1 = Internship, 2 = Entry Level, 3 = Associate
 
-def is_valid_sde_job(title):
-    if not title:
-        return False
-    title_lower = title.lower()
-    
-    # Exclude senior / lead / architecture roles
-    exclude_senior_keywords = [
-        'senior', 'sr.', 'sr ', 'lead', 'principal', 'manager', 'director', 
-        'vp', 'architect', 'staff', 'head', 'president', 'chief', 'cto', 
-        'expert', 'lead', 'head'
-    ]
-    for kw in exclude_senior_keywords:
-        if kw in title_lower:
-            return False
-            
-    # Exclude business / non-engineering / management roles
-    exclude_business_keywords = [
-        'business analyst', 'product manager', 'project manager', 'program manager',
-        'scrum', 'sales', 'marketing', 'recruiter', 'hr ', 'human resources',
-        'account executive', 'account manager', 'operations', 'finance',
-        'legal', 'counsel', 'designer', 'ux', 'ui/ux', 'content', 'writer',
-        'customer success', 'support agent', 'agile coach', 'data analyst', 
-        'business development', 'qa analyst', 'scrum master'
-    ]
-    for kw in exclude_business_keywords:
-        if kw in title_lower:
-            return False
-            
-    # Include only software engineering / developer roles
-    engineering_keywords = [
-        'sde', 'developer', 'engineer', 'intern', 'internship', 'software', 
-        'frontend', 'backend', 'fullstack', 'full-stack', 'programmer', 
-        'coder', 'development'
-    ]
-    has_eng = any(kw in title_lower for kw in engineering_keywords)
-    if not has_eng:
-        return False
-        
-    return True
+# ── Cookie cache directory ──────────────────────────────────────────────
+SESSION_CACHE_DIR = '.session_cache'
+COOKIE_MAX_AGE = 24 * 60 * 60  # 24 hours in seconds
+
+
+def _ensure_cache_dir():
+    os.makedirs(SESSION_CACHE_DIR, exist_ok=True)
+
+
+def _cache_path(email):
+    h = hashlib.md5(email.encode()).hexdigest()
+    return os.path.join(SESSION_CACHE_DIR, f"{h}.json")
+
+
+def _save_cookies(email, cookies):
+    """Persist session cookies to disk."""
+    _ensure_cache_dir()
+    data = {
+        'email': email,
+        'cookies': cookies,
+        'saved_at': time.time(),
+    }
+    with open(_cache_path(email), 'w') as f:
+        json.dump(data, f)
+
+
+def _load_cookies(email):
+    """Load cached cookies if they exist and are not expired."""
+    path = _cache_path(email)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, 'r') as f:
+            data = json.load(f)
+        if time.time() - data.get('saved_at', 0) > COOKIE_MAX_AGE:
+            return None
+        return data.get('cookies')
+    except Exception:
+        return None
+
+
+def _build_headers(session):
+    """Build LinkedIn API request headers from a session's cookies."""
+    return {
+        'Authority': 'www.linkedin.com',
+        'Method': 'GET',
+        'Scheme': 'https',
+        'Accept': 'application/vnd.linkedin.normalized+json+2.1',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cookie': "; ".join([f"{key}={value}" for key, value in session.cookies.items()]),
+        'Csrf-Token': session.cookies.get('JSESSIONID', '').strip('"'),
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+        'X-Li-Track': '{"clientVersion":"1.13.5589","mpVersion":"1.13.5589","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":360,"displayHeight":800}'
+    }
+
 
 def create_session(email, password):
+    """
+    Create an authenticated requests.Session for LinkedIn.
+
+    First checks the cookie cache.  If cached cookies are valid, skips
+    Selenium entirely.  Otherwise launches a browser for interactive login.
+    """
+    # Try cookie cache first
+    cached = _load_cookies(email)
+    if cached:
+        session = requests.Session()
+        for cookie in cached:
+            session.cookies.set(cookie['name'], cookie['value'])
+        # Quick validation — try a lightweight request
+        try:
+            headers = _build_headers(session)
+            resp = session.get(
+                'https://www.linkedin.com/voyager/api/me',
+                headers=headers,
+                timeout=10,
+            )
+            if resp.status_code == 200:
+                print(f'[+] Loaded cached session for "{email}"')
+                return session
+        except Exception:
+            pass
+        print(f'[!] Cached cookies expired for "{email}", launching browser...')
+
+    # Selenium login
     if BROWSER == 'chrome':
         driver = webdriver.Chrome()
     elif BROWSER == 'edge':
         driver = webdriver.Edge()
+    else:
+        driver = webdriver.Chrome()
 
     driver.get('https://www.linkedin.com/checkpoint/rm/sign-in-another-account')
-    
-    # Wait for the login form to load
+
     WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.ID, 'username'))
     ).send_keys(email)
-    
+
     driver.find_element(By.ID, 'password').send_keys(password)
-    
-    # Attempt to click the submit/sign-in button using various selectors
+
     try:
         WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[type="submit"]'))
@@ -86,107 +132,285 @@ def create_session(email, password):
     time.sleep(1)
     cookies = driver.get_cookies()
     driver.quit()
+
+    # Save cookies to cache
+    _save_cookies(email, cookies)
+
     session = requests.Session()
     for cookie in cookies:
         session.cookies.set(cookie['name'], cookie['value'])
     return session
 
-def get_logins(method):
+
+def get_logins():
+    """
+    Read LinkedIn credentials from logins.csv.
+
+    The CSV should have columns: emails, passwords
+    (no 'method' column — single account supports both search and details).
+    """
     logins = pd.read_csv('logins.csv')
-    logins = logins[logins['method'] == method]
     emails = logins['emails'].tolist()
     passwords = logins['passwords'].tolist()
     return emails, passwords
 
-class JobSearchRetriever:
-    def __init__(self):
-        search_query = '(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,selectedFilters:(sortBy:List(DD)),spellCorrectionEnabled:true)'
-        self.job_search_link = f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=100&q=jobSearch&query={search_query}&start=0'
-        emails, passwords = get_logins('search')
-        self.sessions = [create_session(email, password) for email, password in zip(emails, passwords)]
-        self.session_index = 0
-        self.headers = [{
-            'Authority': 'www.linkedin.com',
-            'Method': 'GET',
-            'Path': f'voyager/api/voyagerJobsDashJobCards?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187&count=25&q=jobSearch&query={search_query}&start=0',
-            'Scheme': 'https',
-            'Accept': 'application/vnd.linkedin.normalized+json+2.1',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cookie': "; ".join([f"{key}={value}" for key, value in session.cookies.items()]),
-            'Csrf-Token': session.cookies.get('JSESSIONID').strip('"'),
-            # 'TE': 'Trailers',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
-            # 'X-Li-Track': '{"clientVersion":"1.12.7990","mpVersion":"1.12.7990","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":1920,"displayHeight":1080}'
-            'X-Li-Track': '{"clientVersion":"1.13.5589","mpVersion":"1.13.5589","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":360,"displayHeight":800}'
-        } for session in self.sessions]
 
-    def get_jobs(self):
-        results = self.sessions[self.session_index].get(self.job_search_link, headers=self.headers[self.session_index])
-        self.session_index = (self.session_index + 1) % len(self.sessions)
+# ════════════════════════════════════════════════════════════════════════
+# Shared Session Pool
+# ════════════════════════════════════════════════════════════════════════
+
+class SessionPool:
+    """
+    Singleton session manager.  Creates sessions once and shares them
+    between JobSearchRetriever and JobDetailRetriever.
+    """
+    _instance = None
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def reset(cls):
+        cls._instance = None
+
+    def __init__(self):
+        emails, passwords = get_logins()
+        self.sessions = []
+        self.headers_list = []
+        self._session_index = 0
+        for email, password in zip(emails, passwords):
+            session = create_session(email, password)
+            headers = _build_headers(session)
+            self.sessions.append(session)
+            self.headers_list.append(headers)
+
+    def get_next(self):
+        """Return (session, headers) using round-robin."""
+        s = self.sessions[self._session_index]
+        h = self.headers_list[self._session_index]
+        self._session_index = (self._session_index + 1) % len(self.sessions)
+        return s, h
+
+    @property
+    def count(self):
+        return len(self.sessions)
+
+
+# ════════════════════════════════════════════════════════════════════════
+# LinkedIn Search URL Builder
+# ════════════════════════════════════════════════════════════════════════
+
+# Maps config values to LinkedIn's Voyager API filter parameters
+_EXPERIENCE_MAP = {
+    'internship': '1', 'entry': '2', 'associate': '3',
+    'mid-senior': '4', 'director': '5', 'executive': '6',
+}
+
+_JOB_TYPE_MAP = {
+    'full-time': 'F', 'part-time': 'P', 'contract': 'C',
+    'internship': 'I', 'temporary': 'T', 'volunteer': 'V',
+}
+
+_REMOTE_MAP = {
+    'on-site': '1', 'remote': '2', 'hybrid': '3',
+}
+
+_DATE_POSTED_MAP = {
+    'past_24h': 'r86400',
+    'past_week': 'r604800',
+    'past_month': 'r2592000',
+}
+
+
+def build_search_url(config: dict, start: int = 0) -> str:
+    """
+    Build a LinkedIn Voyager API search URL from a config dict.
+
+    The URL targets the voyagerJobsDashJobCards endpoint with dynamic
+    filters derived from the scrape config.
+    """
+    base = (
+        'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards'
+        '?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187'
+        '&count=100'
+        '&q=jobSearch'
+    )
+
+    # Build the selectedFilters portion of the query
+    filters = ['sortBy:List(DD)']
+
+    # Keywords
+    keywords = config.get('keywords', [])
+    keyword_str = ' '.join(keywords) if isinstance(keywords, list) else str(keywords)
+
+    # Experience levels
+    exp_levels = config.get('experience_level', [])
+    if exp_levels and isinstance(exp_levels, list):
+        codes = [_EXPERIENCE_MAP.get(e.lower(), '') for e in exp_levels]
+        codes = [c for c in codes if c]
+        if codes:
+            filters.append(f"experience:List({','.join(codes)})")
+
+    # Job type
+    job_types = config.get('job_type', [])
+    if job_types and isinstance(job_types, list):
+        codes = [_JOB_TYPE_MAP.get(t.lower(), '') for t in job_types]
+        codes = [c for c in codes if c]
+        if codes:
+            filters.append(f"jobType:List({','.join(codes)})")
+
+    # Remote filter
+    remote = config.get('remote_filter', 'any')
+    if remote and remote != 'any':
+        code = _REMOTE_MAP.get(remote.lower(), '')
+        if code:
+            filters.append(f"workplaceType:List({code})")
+
+    # Date posted
+    date_posted = config.get('date_posted', 'any')
+    if date_posted and date_posted != 'any':
+        tpr = _DATE_POSTED_MAP.get(date_posted, '')
+        if tpr:
+            filters.append(f"timePostedRange:List({tpr})")
+
+    filter_str = ','.join(filters)
+
+    # Build location portion
+    location = config.get('location', '')
+    location_part = ''
+    if location:
+        from urllib.parse import quote
+        location_part = f',locationUnion:(geoId:{quote(str(location))})'
+
+    # Combine query
+    query = (
+        f'(origin:JOB_SEARCH_PAGE_OTHER_ENTRY'
+        f',keywords:{keyword_str}'
+        f',selectedFilters:({filter_str})'
+        f'{location_part}'
+        f',spellCorrectionEnabled:true)'
+    )
+
+    from urllib.parse import quote
+    url = f"{base}&query={quote(query)}&start={start}"
+    return url
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Job Search Retriever
+# ════════════════════════════════════════════════════════════════════════
+
+class JobSearchRetriever:
+    """
+    Discovers new job postings via LinkedIn Voyager search API.
+
+    Can be initialised with an explicit config dict (for dashboard-triggered
+    scrapes) or without one (loads active config from DB).
+    """
+    def __init__(self, config=None):
+        self.config = config
+        pool = SessionPool.get_instance()
+        self.pool = pool
+
+        # Build default URL for backward-compat (no config → static URL)
+        if self.config:
+            self.job_search_link = build_search_url(self.config, start=0)
+        else:
+            search_query = '(origin:JOB_SEARCH_PAGE_OTHER_ENTRY,selectedFilters:(sortBy:List(DD)),spellCorrectionEnabled:true)'
+            self.job_search_link = (
+                f'https://www.linkedin.com/voyager/api/voyagerJobsDashJobCards'
+                f'?decorationId=com.linkedin.voyager.dash.deco.jobs.search.JobSearchCardsCollection-187'
+                f'&count=100&q=jobSearch&query={search_query}&start=0'
+            )
+
+    def get_jobs(self, start=0):
+        """
+        Fetch a page of job search results.
+
+        Returns dict of {job_id: {'title': ..., 'sponsored': bool}}
+        """
+        if self.config:
+            url = build_search_url(self.config, start=start)
+        else:
+            url = self.job_search_link
+
+        session, headers = self.pool.get_next()
+        results = session.get(url, headers=headers)
 
         if results.status_code != 200:
-            raise Exception('Status code {} for search\nURL: {}\nText: {}'.format(results.status_code, results.url, results.text))
+            raise Exception(
+                'Status code {} for search\nURL: {}\nText: {}'.format(
+                    results.status_code, results.url, results.text
+                )
+            )
+
         results = results.json()
         job_ids = {}
 
-        for r in results['included']:
-            if r['$type'] == 'com.linkedin.voyager.dash.jobs.JobPostingCard' and 'referenceId' in r:
+        for r in results.get('included', []):
+            if r.get('$type') == 'com.linkedin.voyager.dash.jobs.JobPostingCard' and 'referenceId' in r:
                 title = r.get('jobPostingTitle')
-                if not is_valid_sde_job(title):
+                if not title:
                     continue
                 job_id = int(strip_val(r['jobPostingUrn'], 1))
-                job_ids[job_id] = {'sponsored': False}
-                job_ids[job_id]['title'] = title
-                for x in r['footerItems']:
+                job_ids[job_id] = {'sponsored': False, 'title': title}
+                for x in r.get('footerItems', []):
                     if x.get('type') == 'PROMOTED':
                         job_ids[job_id]['sponsored'] = True
                         break
 
         return job_ids
 
+
+# ════════════════════════════════════════════════════════════════════════
+# Job Detail Retriever
+# ════════════════════════════════════════════════════════════════════════
+
 class JobDetailRetriever:
+    """
+    Retrieves full job details for individual job postings.
+
+    Shares the same SessionPool as JobSearchRetriever.
+    """
     def __init__(self):
         self.error_count = 0
-        self.job_details_link = "https://www.linkedin.com/voyager/api/jobs/jobPostings/{}?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-65"
-        emails, passwords = get_logins('details')
-        self.emails = emails
-        self.sessions = [create_session(email, password) for email, password in zip(emails, passwords)]
-        self.session_index = 0
+        self.job_details_link = (
+            "https://www.linkedin.com/voyager/api/jobs/jobPostings/{}"
+            "?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-65"
+        )
+        self.pool = SessionPool.get_instance()
         self.variable_paths = pd.read_csv('json_paths/data_variables.csv')
-
-        self.headers = [{
-            'Authority': 'www.linkedin.com',
-            'Method': 'GET',
-            'Path': '/voyager/api/search/hits?decorationId=com.linkedin.voyager.deco.jserp.WebJobSearchHitWithSalary-25&count=25&filters=List(sortBy-%3EDD,resultType-%3EJOBS)&origin=JOB_SEARCH_PAGE_JOB_FILTER&q=jserpFilters&queryContext=List(primaryHitType-%3EJOBS,spellCorrectionEnabled-%3Etrue)&start=0&topNRequestedFlavors=List(HIDDEN_GEM,IN_NETWORK,SCHOOL_RECRUIT,COMPANY_RECRUIT,SALARY,JOB_SEEKER_QUALIFIED,PRE_SCREENING_QUESTIONS,SKILL_ASSESSMENTS,ACTIVELY_HIRING_COMPANY,TOP_APPLICANT)',
-            'Scheme': 'https',
-            'Accept': 'application/vnd.linkedin.normalized+json+2.1',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Cookie': "; ".join([f"{key}={value}" for key, value in session.cookies.items()]),
-            'Csrf-Token': session.cookies.get('JSESSIONID').strip('"'),
-            # 'TE': 'Trailers',
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
-            # 'X-Li-Track': '{"clientVersion":"1.12.7990","mpVersion":"1.12.7990","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":1920,"displayHeight":1080}'
-            'X-Li-Track': '{"clientVersion":"1.13.5589","mpVersion":"1.13.5589","osName":"web","timezoneOffset":-7,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web","displayDensity":1,"displayWidth":360,"displayHeight":800}'
-        } for session in self.sessions]
-
-        # self.proxies = [{'http': f'http://{proxy}', 'https': f'http://{proxy}'} for proxy in []]
-
 
     def get_job_details(self, job_ids):
         job_details = {}
         for job_id in job_ids:
             error = False
+            session, headers = self.pool.get_next()
             try:
-                details = self.sessions[self.session_index].get(self.job_details_link.format(job_id), headers=self.headers[self.session_index])#, proxies=self.proxies[self.session_index], timeout=5)
+                details = session.get(
+                    self.job_details_link.format(job_id),
+                    headers=headers,
+                    timeout=15,
+                )
             except requests.exceptions.Timeout:
                 print('Timeout for job {}'.format(job_id))
                 error = True
-            if details.status_code != 200:
-                job_details[job_id] = -1
-                print('Status code {} for job {} with account {}\nText: {}'.format(details.status_code, job_id, self.emails[self.session_index], details.text))
+                details = None
+            except requests.exceptions.RequestException as e:
+                print('Request error for job {}: {}'.format(job_id, e))
                 error = True
+                details = None
+
+            if details is not None and details.status_code != 200:
+                job_details[job_id] = -1
+                print('Status code {} for job {}\nText: {}'.format(
+                    details.status_code, job_id, details.text
+                ))
+                error = True
+
             if error:
                 self.error_count += 1
                 if self.error_count > 10:
@@ -195,8 +419,6 @@ class JobDetailRetriever:
                 self.error_count = 0
                 job_details[job_id] = details.json()
                 print('Job {} done'.format(job_id))
-            self.session_index = (self.session_index + 1) % len(self.sessions)
+
             time.sleep(.3)
         return job_details
-
-# https://proxy2.webshare.io/register?

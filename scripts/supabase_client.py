@@ -21,8 +21,10 @@ INTEGER_COLUMNS = {
     "industries": {"industry_id"},
     "job_industries": {"job_id", "industry_id"},
     "job_skills": {"job_id"},
-    "jobs": {"job_id", "scraped", "company_id", "applies", "remote_allowed", "years_experience", "views"},
+    "jobs": {"job_id", "scraped", "company_id", "applies", "remote_allowed", "years_experience", "views", "relevance_score", "scrape_run_id"},
     "salaries": {"job_id"},
+    "scrape_configs": {"id", "years_of_experience_min", "years_of_experience_max", "expected_pay_min", "expected_pay_max", "max_jobs_to_scrape", "pages_to_scrape", "weight_title_match", "weight_skills_match", "weight_salary_match"},
+    "scrape_runs": {"run_id", "config_id", "total_found", "new_jobs", "pages_scraped", "total_pages", "errors"},
 }
 
 
@@ -103,6 +105,7 @@ class SupabaseClient:
             return response.json()
         return None
 
+    # ── Jobs ────────────────────────────────────────────────────────────
     def select_existing_job_ids(self, job_ids):
         if not job_ids:
             return set()
@@ -146,6 +149,110 @@ class SupabaseClient:
     def update_job(self, job_id, values):
         values = _coerce_row("jobs", values)
         self._request("PATCH", "jobs", params={"job_id": f"eq.{job_id}"}, payload=values)
+
+    # ── Scrape Configs ──────────────────────────────────────────────────
+    def select_configs(self):
+        rows = self._request("GET", "scrape_configs", params={
+            "select": "*",
+            "order": "updated_at.desc",
+        }) or []
+        return rows
+
+    def select_config(self, config_id):
+        rows = self._request("GET", "scrape_configs", params={
+            "select": "*",
+            "id": f"eq.{config_id}",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
+
+    def select_active_config(self):
+        rows = self._request("GET", "scrape_configs", params={
+            "select": "*",
+            "is_active": "eq.true",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
+
+    def insert_config(self, data):
+        """Insert a new config and return its id."""
+        data = _coerce_row("scrape_configs", data)
+        data.pop('id', None)
+        rows = self._request(
+            "POST", "scrape_configs",
+            payload=[data],
+            prefer="return=representation",
+        )
+        return rows[0]["id"] if rows else None
+
+    def update_config(self, config_id, data):
+        data = _coerce_row("scrape_configs", data)
+        data.pop('id', None)
+        self._request(
+            "PATCH", "scrape_configs",
+            params={"id": f"eq.{config_id}"},
+            payload=data,
+        )
+
+    def delete_config(self, config_id):
+        self._request("DELETE", "scrape_configs", params={"id": f"eq.{config_id}"})
+
+    def activate_config(self, config_id):
+        """Deactivate all configs, then activate the target."""
+        self._request(
+            "PATCH", "scrape_configs",
+            params={"is_active": "eq.true"},
+            payload={"is_active": False},
+        )
+        self._request(
+            "PATCH", "scrape_configs",
+            params={"id": f"eq.{config_id}"},
+            payload={"is_active": True},
+        )
+
+    # ── Scrape Runs ─────────────────────────────────────────────────────
+    def insert_run(self, data):
+        """Insert a new scrape run and return its run_id."""
+        data = _coerce_row("scrape_runs", data)
+        rows = self._request(
+            "POST", "scrape_runs",
+            payload=[data],
+            prefer="return=representation",
+        )
+        return rows[0]["run_id"] if rows else None
+
+    def update_run(self, run_id, data):
+        data = _coerce_row("scrape_runs", data)
+        self._request(
+            "PATCH", "scrape_runs",
+            params={"run_id": f"eq.{run_id}"},
+            payload=data,
+        )
+
+    def select_run(self, run_id):
+        rows = self._request("GET", "scrape_runs", params={
+            "select": "*",
+            "run_id": f"eq.{run_id}",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
+
+    def select_current_run(self):
+        rows = self._request("GET", "scrape_runs", params={
+            "select": "*",
+            "status": "in.(running,stopping)",
+            "order": "run_id.desc",
+            "limit": "1",
+        }) or []
+        return rows[0] if rows else None
+
+    def select_runs(self, limit=20):
+        rows = self._request("GET", "scrape_runs", params={
+            "select": "*",
+            "order": "run_id.desc",
+            "limit": str(limit),
+        }) or []
+        return rows
 
 
 def get_supabase_client():
