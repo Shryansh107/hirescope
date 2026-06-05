@@ -92,6 +92,7 @@ def create_session(email, password):
                 'https://www.linkedin.com/voyager/api/me',
                 headers=headers,
                 timeout=10,
+                allow_redirects=False,
             )
             if resp.status_code == 200:
                 print(f'[+] Loaded cached session for "{email}"')
@@ -280,17 +281,18 @@ def build_search_url(config: dict, start: int = 0) -> str:
 
     # Build location portion
     location = config.get('location', '')
-    location_part = ''
     if location:
-        from urllib.parse import quote
-        location_part = f',locationUnion:(geoId:{quote(str(location))})'
+        # Append location to keywords since string geoIds are invalid in Voyager
+        if keyword_str:
+            keyword_str += f" {location}"
+        else:
+            keyword_str = str(location)
 
     # Combine query
     query = (
         f'(origin:JOB_SEARCH_PAGE_OTHER_ENTRY'
         f',keywords:{keyword_str}'
         f',selectedFilters:({filter_str})'
-        f'{location_part}'
         f',spellCorrectionEnabled:true)'
     )
 
@@ -338,14 +340,15 @@ class JobSearchRetriever:
             url = self.job_search_link
 
         session, headers = self.pool.get_next()
-        results = session.get(url, headers=headers)
+        results = session.get(url, headers=headers, allow_redirects=False, timeout=15)
 
         if results.status_code != 200:
-            raise Exception(
-                'Status code {} for search\nURL: {}\nText: {}'.format(
-                    results.status_code, results.url, results.text
-                )
+            msg = 'Status code {} for search\nURL: {}\nText: {}'.format(
+                results.status_code, results.url, results.text
             )
+            if results.status_code in (302, 303):
+                msg = f"Session expired or auth blocked (Redirect {results.status_code}). Please delete linkedin_cookies_*.json and restart to re-login."
+            raise Exception(msg)
 
         results = results.json()
         job_ids = {}
@@ -394,6 +397,7 @@ class JobDetailRetriever:
                     self.job_details_link.format(job_id),
                     headers=headers,
                     timeout=15,
+                    allow_redirects=False,
                 )
             except requests.exceptions.Timeout:
                 print('Timeout for job {}'.format(job_id))
@@ -405,10 +409,13 @@ class JobDetailRetriever:
                 details = None
 
             if details is not None and details.status_code != 200:
-                job_details[job_id] = -1
-                print('Status code {} for job {}\nText: {}'.format(
-                    details.status_code, job_id, details.text
-                ))
+                if details.status_code in (302, 303):
+                    job_details[job_id] = {'error': "Session expired / Auth blocked. Delete cookies and restart."}
+                else:
+                    job_details[job_id] = -1
+                    print('Status code {} for job {}\nText: {}'.format(
+                        details.status_code, job_id, details.text
+                    ))
                 error = True
 
             if error:
