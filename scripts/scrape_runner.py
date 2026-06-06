@@ -41,6 +41,23 @@ def _get_db():
     return conn, cursor
 
 
+def _existing_job_ids(job_ids, cursor):
+    """Return existing job ids for the active backend."""
+    job_ids = list(job_ids)
+    if not job_ids:
+        return set()
+
+    if using_supabase():
+        from scripts.supabase_client import get_supabase_client
+        return get_supabase_client().select_existing_job_ids(job_ids)
+
+    query = "SELECT job_id FROM jobs WHERE job_id IN ({})".format(
+        ','.join(['?'] * len(job_ids))
+    )
+    cursor.execute(query, job_ids)
+    return {r[0] for r in cursor.fetchall()}
+
+
 def run_scrape(run_id: int):
     """
     Continuous scrape execution in a background thread.
@@ -78,7 +95,23 @@ def run_scrape(run_id: int):
         conn, cursor = _get_db()
 
         # ── Phase 1: Job Discovery ──────────────────────────────────────
-        cycle_discovered = {}  # job_id → info
+        cycle_discovered_ids = set()
+        cycle_new_jobs = {}
+        pending_insert_jobs = {}
+
+        def flush_pending_jobs(force=False):
+            nonlocal total_new_jobs_count
+            if not pending_insert_jobs or (not force and len(pending_insert_jobs) < 5):
+                return
+
+            batch = dict(pending_insert_jobs)
+            insert_job_postings(batch, conn, cursor)
+            cycle_new_jobs.update(batch)
+            pending_insert_jobs.clear()
+
+            total_new_jobs_count += len(batch)
+            update_run_progress(run_id, new_jobs=total_new_jobs_count)
+            print(f"[scrape_runner] Inserted {len(batch)} new jobs; total new this run: {total_new_jobs_count}")
 
         # Parse locations list
         loc_str = config.get('location', '')
@@ -133,8 +166,24 @@ def run_scrape(run_id: int):
                     if matches_config_filters(info.get('title', ''), config):
                         filtered_jobs[job_id] = info
 
-                cycle_discovered.update(filtered_jobs)
+                cycle_discovered_ids.update(filtered_jobs.keys())
                 all_discovered_ids.update(filtered_jobs.keys())
+
+                candidates = {
+                    jid: info
+                    for jid, info in filtered_jobs.items()
+                    if jid not in cycle_new_jobs and jid not in pending_insert_jobs
+                }
+                existing = _existing_job_ids(candidates.keys(), cursor)
+                for job_id, info in candidates.items():
+                    if job_id in existing:
+                        continue
+                    score, matched = compute_relevance(info, config)
+                    info['relevance_score'] = score
+                    info['matched_keywords'] = json.dumps(matched)
+                    info['scrape_run_id'] = run_id
+                    pending_insert_jobs[job_id] = info
+                    flush_pending_jobs()
 
                 update_run_progress(
                     run_id,
@@ -150,47 +199,19 @@ def run_scrape(run_id: int):
                 time.sleep(1)
 
         if _should_stop(run_id):
+            flush_pending_jobs(force=True)
             if conn: conn.close()
             break
 
-        # ── Deduplicate against DB ──────────────────────────────────────
-        if using_supabase():
-            from scripts.supabase_client import get_supabase_client
-            supabase = get_supabase_client()
-            existing = supabase.select_existing_job_ids(cycle_discovered.keys())
-        else:
-            if cycle_discovered:
-                query = "SELECT job_id FROM jobs WHERE job_id IN ({})".format(
-                    ','.join(['?'] * len(cycle_discovered))
-                )
-                cursor.execute(query, list(cycle_discovered.keys()))
-                existing = {r[0] for r in cursor.fetchall()}
-            else:
-                existing = set()
-
-        new_jobs = {jid: info for jid, info in cycle_discovered.items() if jid not in existing}
-
-        # ── Compute preliminary relevance for discovered jobs ───────────
-        for job_id, info in new_jobs.items():
-            score, matched = compute_relevance(info, config)
-            info['relevance_score'] = score
-            info['matched_keywords'] = json.dumps(matched)
-            info['scrape_run_id'] = run_id
-
-        # ── Insert discovered jobs ──────────────────────────────────────
-        if new_jobs:
-            insert_job_postings(new_jobs, conn, cursor)
-
-        total_new_jobs_count += len(new_jobs)
-        update_run_progress(run_id, new_jobs=total_new_jobs_count)
-        print(f"[scrape_runner] Cycle {cycle} discovery: {len(cycle_discovered)} found, {len(new_jobs)} new")
+        flush_pending_jobs(force=True)
+        print(f"[scrape_runner] Cycle {cycle} discovery: {len(cycle_discovered_ids)} found, {len(cycle_new_jobs)} new")
 
         # ── Phase 2: Detail Retrieval ───────────────────────────────────
         if _should_stop(run_id):
             if conn: conn.close()
             break
 
-        detail_ids = list(new_jobs.keys())
+        detail_ids = list(cycle_new_jobs.keys())
         if detail_ids:
             try:
                 detail_retriever = JobDetailRetriever()
@@ -213,7 +234,7 @@ def run_scrape(run_id: int):
                         for job_id, job_info in cleaned.items():
                             if 'error' not in job_info and 'jobs' in job_info:
                                 job_flat = dict(job_info.get('jobs', {}))
-                                job_flat['title'] = job_flat.get('title', new_jobs.get(job_id, {}).get('title', ''))
+                                job_flat['title'] = job_flat.get('title', cycle_new_jobs.get(job_id, {}).get('title', ''))
                                 score, matched = compute_relevance(job_flat, config)
                                 job_info['relevance_score'] = score
                                 job_info['matched_keywords'] = json.dumps(matched)

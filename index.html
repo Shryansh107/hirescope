@@ -243,6 +243,12 @@
             transition: all 0.2s ease; display: inline-flex; align-items: center;
             justify-content: center; gap: 0.4rem;
         }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
         .btn-primary {
             background: linear-gradient(135deg, var(--primary), var(--accent));
             color: #fff; width: 100%;
@@ -734,7 +740,8 @@
                 <div class="input-group"><label for="search-input">Search</label><input type="text" id="search-input" class="input-control" placeholder="Title, company, location…"></div>
                 <div class="input-group" style="max-width:170px"><label for="filter-worktype">Work Type</label><select id="filter-worktype" class="input-control"><option value="">All</option><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></div>
                 <div class="input-group" style="max-width:170px"><label for="filter-experience">Experience</label><select id="filter-experience" class="input-control"><option value="">All</option><option>Internship</option><option>Entry level</option><option>Associate</option><option>Mid-Senior level</option></select></div>
-                <div class="input-group" style="max-width:170px"><label for="filter-date">Date Posted</label><select id="filter-date" class="input-control"><option value="">All</option><option value="24h">Past 24 Hours</option><option value="week">Past Week</option><option value="month">Past Month</option></select></div>
+                <div class="input-group" style="max-width:170px"><label for="filter-date">Date Posted</label><select id="filter-date" class="input-control"><option value="">All</option><option value="24h">Past 24 Hours</option><option value="week">Past Week</option><option value="month">Past Month</option><option value="custom_days">Past Days</option></select></div>
+                <div class="input-group" style="max-width:120px"><label for="filter-days">Days</label><input type="number" min="1" step="1" id="filter-days" class="input-control" value="7"></div>
                 <div class="input-group" style="max-width:150px"><label for="filter-scraped">Status</label><select id="filter-scraped" class="input-control"><option value="">All</option><option value="1">Scraped</option><option value="0">Pending</option></select></div>
             </div>
 
@@ -831,6 +838,7 @@
     let currentPage = 1;
     const pageSize = 20;
     let pollTimer = null;
+    let stopRequestPending = false;
 
     // ═══════════════════════════════════════════════════════════════════
     // Tag Input Component
@@ -1278,12 +1286,30 @@
     // ═══════════════════════════════════════════════════════════════════
     // Scrape Control
     // ═══════════════════════════════════════════════════════════════════
+    function setButtonProcessing(buttonId, isProcessing, processingHtml = null) {
+        const button = document.getElementById(buttonId);
+        if (!button) return;
+        if (!button.dataset.originalHtml) button.dataset.originalHtml = button.innerHTML;
+        button.disabled = isProcessing;
+        button.innerHTML = isProcessing && processingHtml ? processingHtml : button.dataset.originalHtml;
+    }
+
+    function resetScrapeButtons() {
+        setButtonProcessing('btn-start-scrape', false);
+        setButtonProcessing('btn-stop-scrape', false);
+        stopRequestPending = false;
+    }
+
     async function startScraping() {
         const cfg = readConfigFromForm();
         if (!cfg.keywords.length && !cfg.job_titles.length) {
             alert('Please add at least keywords or job titles before scraping.');
             return;
         }
+        setButtonProcessing('btn-start-scrape', true, '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Starting...');
+        document.getElementById('btn-stop-scrape').style.display = 'inline-flex';
+        setButtonProcessing('btn-stop-scrape', false);
+
         // Auto-save and activate
         cfg.profile_name = cfg.profile_name || 'Quick Scrape';
         try {
@@ -1297,6 +1323,7 @@
             startProgressPolling();
         } catch (e) {
             alert('Failed to start: ' + e.message);
+            resetScrapeButtons();
         }
     }
 
@@ -1309,7 +1336,11 @@
     async function updateProgress() {
         try {
             const run = await apiFetch('/api/scrape/status');
-            if (run.status === 'idle') return;
+            if (run.status === 'idle') {
+                resetScrapeButtons();
+                document.getElementById('btn-stop-scrape').style.display = 'inline-flex';
+                return;
+            }
 
             const pagesTotal = run.total_pages || 1;
             const pagesScraped = run.pages_scraped || 0;
@@ -1331,23 +1362,46 @@
             if (run.status === 'completed') {
                 log.textContent = `✓ Scrape completed. Found ${run.total_found || 0} jobs, ${run.new_jobs || 0} new.`;
                 clearInterval(pollTimer); pollTimer = null;
+                resetScrapeButtons();
                 document.getElementById('btn-stop-scrape').style.display = 'none';
                 setTimeout(() => { closeModal('progress-modal'); fetchJobs(); }, 2500);
             } else if (run.status === 'failed') {
                 log.textContent = `✗ Scrape failed. Errors: ${(run.error_log || []).join('\n')}`;
                 clearInterval(pollTimer); pollTimer = null;
+                resetScrapeButtons();
+                document.getElementById('btn-stop-scrape').style.display = 'none';
             } else if (run.status === 'stopped') {
                 log.textContent = `⊘ Scrape stopped by user. Found ${run.total_found || 0} jobs.`;
                 clearInterval(pollTimer); pollTimer = null;
+                resetScrapeButtons();
+                document.getElementById('btn-stop-scrape').style.display = 'none';
                 setTimeout(() => { closeModal('progress-modal'); fetchJobs(); }, 1500);
             } else {
+                if (run.status === 'stopping') {
+                    stopRequestPending = true;
+                    setButtonProcessing('btn-start-scrape', true, '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Stopping...');
+                    setButtonProcessing('btn-stop-scrape', true, '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Stopping...');
+                } else {
+                    setButtonProcessing('btn-start-scrape', true, '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Scraping...');
+                }
+                if (run.status !== 'stopping' && !stopRequestPending) {
+                    setButtonProcessing('btn-stop-scrape', false);
+                }
                 log.textContent = `Pages: ${pagesScraped}/${pagesTotal} | Found: ${run.total_found || 0} | New: ${run.new_jobs || 0}`;
             }
         } catch (e) { console.error('Progress poll error:', e); }
     }
 
     async function stopScraping() {
-        try { await apiFetch('/api/scrape/stop', { method: 'POST' }); } catch (e) { alert('Stop failed: ' + e.message); }
+        stopRequestPending = true;
+        setButtonProcessing('btn-stop-scrape', true, '<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> Stopping...');
+        try {
+            await apiFetch('/api/scrape/stop', { method: 'POST' });
+        } catch (e) {
+            stopRequestPending = false;
+            setButtonProcessing('btn-stop-scrape', false);
+            alert('Stop failed: ' + e.message);
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -1378,14 +1432,20 @@
     const filterWorktype = document.getElementById('filter-worktype');
     const filterExperience = document.getElementById('filter-experience');
     const filterDate = document.getElementById('filter-date');
+    const filterDays = document.getElementById('filter-days');
     const filterScraped = document.getElementById('filter-scraped');
     [searchInput, filterWorktype, filterExperience, filterDate, filterScraped].forEach(el => el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', applyFilters));
+    filterDays.addEventListener('input', () => {
+        if (filterDays.value) filterDate.value = 'custom_days';
+        applyFilters();
+    });
 
     function applyFilters() {
         const q = searchInput.value.trim().toLowerCase();
         const wt = filterWorktype.value;
         const exp = filterExperience.value;
         const dateVal = filterDate.value;
+        const customDays = Math.max(parseInt(filterDays.value, 10) || 1, 1);
         const sc = filterScraped.value;
         const now = new Date();
         filteredJobs = allJobs.filter(j => {
@@ -1393,12 +1453,15 @@
             if (wt && j.formatted_work_type !== wt) return false;
             if (exp && j.formatted_experience_level !== exp) return false;
             if (dateVal) {
-                if (!j.posted_at) return false;
-                const postedDate = new Date(j.posted_at);
+                const dateSource = j.posted_at || j.discovered_at;
+                if (!dateSource) return false;
+                const postedDate = new Date(dateSource);
+                if (Number.isNaN(postedDate.getTime())) return false;
                 const diffMs = now - postedDate;
                 if (dateVal === '24h' && diffMs > 24 * 60 * 60 * 1000) return false;
                 if (dateVal === 'week' && diffMs > 7 * 24 * 60 * 60 * 1000) return false;
                 if (dateVal === 'month' && diffMs > 30 * 24 * 60 * 60 * 1000) return false;
+                if (dateVal === 'custom_days' && diffMs > customDays * 24 * 60 * 60 * 1000) return false;
             }
             if (sc !== '' && (sc === '1' ? !(j.scraped > 0) : j.scraped !== 0)) return false;
             return true;
