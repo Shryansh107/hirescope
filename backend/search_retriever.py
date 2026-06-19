@@ -1,10 +1,14 @@
-from scripts.create_db import create_tables
-from scripts.database_scripts import insert_job_postings
-from scripts.fetch import JobSearchRetriever, SessionPool
-from scripts.config_db import get_active_config
-from scripts.helpers import matches_config_filters
-from scripts.relevance import compute_relevance
-from scripts.supabase_client import get_supabase_client, using_supabase
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from db.scripts.create_db import create_tables
+from db.scripts.database_scripts import insert_job_postings
+from BE.scripts.fetch import JobSearchRetriever, SessionPool
+from db.scripts.config_db import get_active_config
+from BE.scripts.helpers import matches_config_filters
+from BE.scripts.relevance import compute_relevance
+from BE.scripts.supabase_client import get_supabase_client, using_supabase
 import sqlite3
 import json
 import time
@@ -20,7 +24,7 @@ if using_supabase():
     cursor = None
     supabase = get_supabase_client()
 else:
-    conn = sqlite3.connect('linkedin_jobs.db')
+    conn = sqlite3.connect(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db', 'linkedin_jobs.db')))
     cursor = conn.cursor()
     create_tables(conn, cursor)
 

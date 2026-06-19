@@ -214,8 +214,11 @@ def create_tables(conn, cursor):
 
 
 if __name__ == '__main__':
+    import os
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
     import sqlite3
-    db_file = 'linkedin_jobs.db'
+    db_file = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'linkedin_jobs.db'))
     print(f"[+] Connecting to SQLite database at '{db_file}'...")
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()

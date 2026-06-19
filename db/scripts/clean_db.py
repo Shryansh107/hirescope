@@ -1,9 +1,12 @@
 import sqlite3
-from scripts.config_db import get_active_config
-from scripts.helpers import matches_config_filters
-from scripts.supabase_client import using_supabase, get_supabase_client
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from db.scripts.config_db import get_active_config
+from BE.scripts.helpers import matches_config_filters
+from BE.scripts.supabase_client import using_supabase, get_supabase_client
 
-DB_FILE = 'linkedin_jobs.db'
+DB_FILE = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'linkedin_jobs.db'))
 
 def clean_database():
     try:

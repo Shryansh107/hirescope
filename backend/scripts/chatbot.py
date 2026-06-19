@@ -1,7 +1,7 @@
 import os
 import json
 import requests
-from scripts.supabase_client import get_supabase_client
+from BE.scripts.supabase_client import get_supabase_client
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-1.5-flash"

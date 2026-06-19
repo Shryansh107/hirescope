@@ -2,11 +2,11 @@ import time
 import json
 import os
 
-from scripts.supabase_client import get_supabase_client, linkedin_time_to_iso, using_supabase, utc_now_iso
+from BE.scripts.supabase_client import get_supabase_client, linkedin_time_to_iso, using_supabase, utc_now_iso
 
 
 def load_excluded_companies():
-    path = 'excluded_companies.json'
+    path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'BE', 'excluded_companies.json'))
     if os.path.exists(path):
         try:
             with open(path, 'r', encoding='utf-8') as f:

@@ -9,9 +9,9 @@ import json
 import sqlite3
 import os
 
-from scripts.supabase_client import using_supabase, utc_now_iso
+from BE.scripts.supabase_client import using_supabase, utc_now_iso
 
-DB_FILE = 'linkedin_jobs.db'
+DB_FILE = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'linkedin_jobs.db'))
 
 # ── JSON field names that are stored as JSON arrays ──────────────────────
 JSON_FIELDS = [

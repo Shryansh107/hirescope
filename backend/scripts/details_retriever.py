@@ -1,11 +1,15 @@
-from scripts.create_db import create_tables
-from scripts.database_scripts import insert_data
-from scripts.fetch import JobDetailRetriever
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from db.scripts.create_db import create_tables
+from db.scripts.database_scripts import insert_data
+from BE.scripts.fetch import JobDetailRetriever
 import sqlite3
-from scripts.helpers import clean_job_postings
-from scripts.config_db import get_active_config
-from scripts.relevance import compute_relevance
-from scripts.supabase_client import get_supabase_client, using_supabase
+from BE.scripts.helpers import clean_job_postings
+from db.scripts.config_db import get_active_config
+from BE.scripts.relevance import compute_relevance
+from BE.scripts.supabase_client import get_supabase_client, using_supabase
 import json
 import time
 import random
@@ -18,7 +22,7 @@ if using_supabase():
     cursor = None
     supabase = get_supabase_client()
 else:
-    conn = sqlite3.connect('linkedin_jobs.db')
+    conn = sqlite3.connect(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'db', 'linkedin_jobs.db')))
     cursor = conn.cursor()
     create_tables(conn, cursor)
 

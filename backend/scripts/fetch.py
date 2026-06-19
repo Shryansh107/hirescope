@@ -9,7 +9,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from scripts.helpers import strip_val, get_value_by_path
+from BE.scripts.helpers import strip_val, get_value_by_path
 
 
 # ── Browser config ──────────────────────────────────────────────────────
@@ -417,7 +417,7 @@ class JobDetailRetriever:
         )
         self.pool = SessionPool.get_instance()
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_dir = os.path.dirname(script_dir)
+        project_dir = os.path.dirname(os.path.dirname(script_dir))
         variables_path = os.path.join(project_dir, 'json_paths', 'data_variables.csv')
         self.variable_paths = pd.read_csv(variables_path)
 

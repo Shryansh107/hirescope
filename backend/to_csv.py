@@ -3,11 +3,13 @@ import csv
 import os
 import pandas as pd
 import argparse
-from scripts.supabase_client import using_supabase, get_supabase_client
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from BE.scripts.supabase_client import using_supabase, get_supabase_client
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-d', '--database', default='linkedin_jobs.db')
+parser.add_argument('-d', '--database', default=os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'db', 'linkedin_jobs.db')))
 parser.add_argument('-f', '--folder', default='csv_files')
 args = parser.parse_args()
 

@@ -10,20 +10,20 @@ import json
 import random
 import time
 import traceback
+import os
+import sqlite3
 
-from scripts.config_db import (
+from db.scripts.config_db import (
     get_active_config,
     get_run,
     update_run_progress,
     finish_run,
     append_run_error,
 )
-from scripts.database_scripts import insert_job_postings, insert_data
-from scripts.helpers import clean_job_postings, matches_config_filters
-from scripts.relevance import compute_relevance
-from scripts.supabase_client import using_supabase, utc_now_iso
-
-import sqlite3
+from db.scripts.database_scripts import insert_job_postings, insert_data
+from BE.scripts.helpers import clean_job_postings, matches_config_filters
+from BE.scripts.relevance import compute_relevance
+from BE.scripts.supabase_client import using_supabase, utc_now_iso
 
 
 def _should_stop(run_id: int) -> bool:
@@ -36,7 +36,7 @@ def _get_db():
     """Return (conn, cursor) for SQLite, or (None, None) for Supabase."""
     if using_supabase():
         return None, None
-    conn = sqlite3.connect('linkedin_jobs.db')
+    conn = sqlite3.connect(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'db', 'linkedin_jobs.db')))
     cursor = conn.cursor()
     return conn, cursor
 
@@ -48,7 +48,7 @@ def _existing_job_ids(job_ids, cursor):
         return set()
 
     if using_supabase():
-        from scripts.supabase_client import get_supabase_client
+        from BE.scripts.supabase_client import get_supabase_client
         return get_supabase_client().select_existing_job_ids(job_ids)
 
     query = "SELECT job_id FROM jobs WHERE job_id IN ({})".format(
@@ -63,7 +63,7 @@ def run_scrape(run_id: int):
     Continuous scrape execution in a background thread.
     Runs discovery + detail loops indefinitely, sleeping between cycles.
     """
-    from scripts.fetch import JobSearchRetriever, JobDetailRetriever
+    from BE.scripts.fetch import JobSearchRetriever, JobDetailRetriever
 
     run = get_run(run_id)
     if not run:

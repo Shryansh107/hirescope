@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from scripts.env import load_dotenv
+from BE.scripts.env import load_dotenv
 
 
 load_dotenv()
