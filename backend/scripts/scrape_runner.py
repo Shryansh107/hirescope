@@ -21,9 +21,9 @@ from db.scripts.config_db import (
     append_run_error,
 )
 from db.scripts.database_scripts import insert_job_postings, insert_data
-from BE.scripts.helpers import clean_job_postings, matches_config_filters
-from BE.scripts.relevance import compute_relevance
-from BE.scripts.supabase_client import using_supabase, utc_now_iso
+from backend.scripts.helpers import clean_job_postings, matches_config_filters
+from backend.scripts.relevance import compute_relevance
+from backend.scripts.supabase_client import using_supabase, utc_now_iso
 
 
 def _should_stop(run_id: int) -> bool:
@@ -48,7 +48,7 @@ def _existing_job_ids(job_ids, cursor):
         return set()
 
     if using_supabase():
-        from BE.scripts.supabase_client import get_supabase_client
+        from backend.scripts.supabase_client import get_supabase_client
         return get_supabase_client().select_existing_job_ids(job_ids)
 
     query = "SELECT job_id FROM jobs WHERE job_id IN ({})".format(
@@ -63,7 +63,7 @@ def run_scrape(run_id: int):
     Continuous scrape execution in a background thread.
     Runs discovery + detail loops indefinitely, sleeping between cycles.
     """
-    from BE.scripts.fetch import JobSearchRetriever, JobDetailRetriever
+    from backend.scripts.fetch import JobSearchRetriever, JobDetailRetriever
 
     run = get_run(run_id)
     if not run:

@@ -4,11 +4,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from db.scripts.create_db import create_tables
 from db.scripts.database_scripts import insert_job_postings
-from BE.scripts.fetch import JobSearchRetriever, SessionPool
+from backend.scripts.fetch import JobSearchRetriever, SessionPool
 from db.scripts.config_db import get_active_config
-from BE.scripts.helpers import matches_config_filters
-from BE.scripts.relevance import compute_relevance
-from BE.scripts.supabase_client import get_supabase_client, using_supabase
+from backend.scripts.helpers import matches_config_filters
+from backend.scripts.relevance import compute_relevance
+from backend.scripts.supabase_client import get_supabase_client, using_supabase
 import sqlite3
 import json
 import time

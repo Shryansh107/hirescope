@@ -18,7 +18,7 @@ from db.scripts.config_db import (
     create_run, update_run_progress, get_run, get_current_run, list_runs,
     cleanup_stale_runs,
 )
-from BE.scripts.supabase_client import using_supabase
+from backend.scripts.supabase_client import using_supabase
 
 PORT = 8000
 
@@ -166,10 +166,10 @@ app.add_middleware(
 @app.get("/index.html")
 async def serve_root():
     _reset_default_config()
-    index_path = os.path.join('FE', 'dist', 'index.html')
+    index_path = os.path.join('frontend', 'dist', 'index.html')
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    raise HTTPException(status_code=404, detail="FE/dist/index.html not found. Please build frontend first.")
+    raise HTTPException(status_code=404, detail="frontend/dist/index.html not found. Please build frontend first.")
 
 
 # ── Jobs API ───────────────────────────────────────────────────
@@ -177,7 +177,7 @@ async def serve_root():
 @app.get("/api/jobs")
 async def get_jobs():
     try:
-        from BE.scripts.supabase_client import get_supabase_client
+        from backend.scripts.supabase_client import get_supabase_client
         client = get_supabase_client()
         jobs = client.select_job_dashboard()
         return jobs
@@ -188,7 +188,7 @@ async def get_jobs():
 @app.get("/api/job/{job_id}")
 async def get_job_detail(job_id: int):
     try:
-        from BE.scripts.supabase_client import get_supabase_client
+        from backend.scripts.supabase_client import get_supabase_client
         client = get_supabase_client()
         job = client.select_job_detail(job_id)
         if job is None:
@@ -286,7 +286,7 @@ async def start_scrape():
         run_id = create_run(config['id'])
 
         # Start scraper in background thread
-        from BE.scripts.scrape_runner import run_scrape
+        from backend.scripts.scrape_runner import run_scrape
         _scraper_thread = threading.Thread(
             target=run_scrape, args=(run_id,), daemon=True
         )
@@ -362,7 +362,7 @@ async def chat(request: Request):
         data = await request.json()
         messages = data.get('messages', [])
         
-        from BE.scripts.chatbot import run_chat_session, execute_tool
+        from backend.scripts.chatbot import run_chat_session, execute_tool
         
         # Simple agent loop to handle tool execution automatically
         # Limit the loops to 5 to avoid infinite execution
@@ -403,8 +403,8 @@ async def chat(request: Request):
 
 @app.get("/{file_path:path}")
 async def serve_static(file_path: str):
-    # Try serving from FE/dist
-    dist_path = os.path.join('FE', 'dist', file_path)
+    # Try serving from frontend/dist
+    dist_path = os.path.join('frontend', 'dist', file_path)
     if os.path.isfile(dist_path):
         return FileResponse(dist_path)
     # Try serving from root directory

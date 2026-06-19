@@ -5,7 +5,7 @@ import pandas as pd
 import argparse
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from BE.scripts.supabase_client import using_supabase, get_supabase_client
+from backend.scripts.supabase_client import using_supabase, get_supabase_client
 
 parser = argparse.ArgumentParser()
 

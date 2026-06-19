@@ -9,7 +9,7 @@ import json
 import sqlite3
 import os
 
-from BE.scripts.supabase_client import using_supabase, utc_now_iso
+from backend.scripts.supabase_client import using_supabase, utc_now_iso
 
 DB_FILE = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'linkedin_jobs.db'))
 

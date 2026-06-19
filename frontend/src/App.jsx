@@ -738,6 +738,7 @@ function App() {
   return (
     <div className="app-container">
       {/* ═══ Sidebar ═══ */}
+      {isLocal && (
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`} id="sidebar">
         <div className="sidebar-header">
           <h2>
@@ -1218,13 +1219,14 @@ function App() {
           </div>
         )}
       </aside>
+      )}
 
       {/* ═══ Main Content ═══ */}
       <div className="main-content">
         <div className="container">
           <header>
             <div className="header-left">
-              {isSidebarCollapsed && (
+              {isSidebarCollapsed && isLocal && (
                 <button
                   className="sidebar-toggle"
                   onClick={() => setIsSidebarCollapsed(false)}
