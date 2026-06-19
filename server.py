@@ -148,7 +148,7 @@ _ensure_db()
 class JobServerHandler(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
-        pass
+        print(f"[server] {format % args}")
 
     # ── Routing helpers ────────────────────────────────────────────────
 
@@ -198,7 +198,7 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
         # Static files
         if path == '/' or path == '/index.html':
             _reset_default_config()
-            self._serve_file('index.html', 'text/html')
+            self._serve_file(os.path.join('frontend', 'dist', 'index.html'), 'text/html')
 
         # ── Jobs API ───────────────────────────────────────────────────
         elif path == '/api/jobs':
@@ -226,7 +226,19 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
         # ── Static file fallback ───────────────────────────────────────
         else:
             file_path = path.lstrip('/')
-            if file_path and os.path.exists(file_path) and os.path.isfile(file_path):
+            dist_path = os.path.join('frontend', 'dist', file_path)
+            if dist_path and os.path.exists(dist_path) and os.path.isfile(dist_path):
+                content_type = 'text/plain'
+                if dist_path.endswith('.html'):
+                    content_type = 'text/html'
+                elif dist_path.endswith('.css'):
+                    content_type = 'text/css'
+                elif dist_path.endswith('.js'):
+                    content_type = 'application/javascript'
+                elif dist_path.endswith('.json'):
+                    content_type = 'application/json'
+                self._serve_file(dist_path, content_type)
+            elif file_path and os.path.exists(file_path) and os.path.isfile(file_path):
                 content_type = 'text/plain'
                 if file_path.endswith('.html'):
                     content_type = 'text/html'
@@ -257,6 +269,9 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
 
         elif path == '/api/scrape/stop':
             self._handle_scrape_stop()
+
+        elif path == '/api/chat':
+            self._handle_chat()
 
         else:
             self._send_error(404, "Not Found")
@@ -461,6 +476,49 @@ class JobServerHandler(http.server.BaseHTTPRequestHandler):
             self._send_json(runs)
         except Exception as e:
             self._send_error(500, str(e))
+
+    def _handle_chat(self):
+        try:
+            data = self._read_body()
+            messages = data.get('messages', [])
+            
+            from scripts.chatbot import run_chat_session, execute_tool
+            
+            # Simple agent loop to handle tool execution automatically
+            # Limit the loops to 5 to avoid infinite execution
+            loop_limit = 5
+            for _ in range(loop_limit):
+                result = run_chat_session(messages)
+                if "error" in result:
+                    self._send_json(result)
+                    return
+                
+                # Check if we need to call tools
+                if "function_calls" in result:
+                    # Append model message to history
+                    messages.append(result)
+                    
+                    # Execute all function calls
+                    for call in result["function_calls"]:
+                        tool_result = execute_tool(call)
+                        messages.append({
+                            "role": "function",
+                            "name": call["name"],
+                            "response": tool_result
+                        })
+                    # Loop back to let model analyze tool outputs
+                    continue
+                else:
+                    # No more function calls, send final response
+                    self._send_json(result)
+                    return
+            
+            # If loop limit reached, send whatever result we have
+            self._send_json(result)
+            
+        except Exception as e:
+            self._send_error(500, f"Chat processing failed: {str(e)}")
+
 
 
 def run_server():

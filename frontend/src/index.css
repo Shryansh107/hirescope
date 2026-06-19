@@ -1,0 +1,77 @@
+:root {
+  color-scheme: dark;
+  --bg-color: #000000;          /* Canvas: true black */
+  --panel-bg: #0d0d0d;          /* Surface Soft */
+  --card-bg: #1a1a1a;           /* Surface Card */
+  --elevated-bg: #262626;       /* Surface Elevated */
+  --border-color: #3c3c3c;      /* Hairline */
+  --border-strong: #262626;     /* Hairline Strong */
+  
+  --primary: #ffffff;
+  --text-main: #ffffff;         /* On Dark */
+  --text-body: #bbbbbb;         /* Body running text */
+  --text-muted: #7e7e7e;        /* Muted / Captions */
+  
+  --m-blue-light: #0066b1;
+  --m-blue-dark: #1c69d4;
+  --m-red: #e22718;
+  
+  --success: #0fa336;
+  --warning: #f4b400;
+  --danger: #e22718;
+
+  --sidebar-width: 370px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-body);
+  font-weight: 300; /* Light weight */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 0px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Base Headings & UPPERCASE display principles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Inter", sans-serif;
+  font-weight: 700;
+  color: var(--text-main);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 4px M Stripe Brand Accent */
+.m-stripe {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(to right, 
+    var(--m-blue-light) 0%, var(--m-blue-light) 33%, 
+    var(--m-blue-dark) 33%, var(--m-blue-dark) 66%, 
+    var(--m-red) 66%, var(--m-red) 100%
+  );
+}

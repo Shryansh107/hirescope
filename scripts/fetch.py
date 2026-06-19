@@ -155,7 +155,10 @@ def get_logins():
     The CSV should have columns: emails, passwords
     (no 'method' column — single account supports both search and details).
     """
-    logins = pd.read_csv('logins.csv')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
+    logins_path = os.path.join(project_dir, 'logins.csv')
+    logins = pd.read_csv(logins_path)
     emails = logins['emails'].tolist()
     passwords = logins['passwords'].tolist()
     return emails, passwords
@@ -413,7 +416,10 @@ class JobDetailRetriever:
             "?decorationId=com.linkedin.voyager.deco.jobs.web.shared.WebFullJobPosting-65"
         )
         self.pool = SessionPool.get_instance()
-        self.variable_paths = pd.read_csv('json_paths/data_variables.csv')
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_dir = os.path.dirname(script_dir)
+        variables_path = os.path.join(project_dir, 'json_paths', 'data_variables.csv')
+        self.variable_paths = pd.read_csv(variables_path)
 
     def get_job_details(self, job_ids):
         job_details = {}
